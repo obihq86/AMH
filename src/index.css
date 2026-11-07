@@ -1,0 +1,291 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Hind Siliguri";
+  src: url("/fonts/HindSiliguri-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hind Siliguri";
+  src: url("/fonts/HindSiliguri-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hind Siliguri";
+  src: url("/fonts/HindSiliguri-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hind Siliguri";
+  src: url("/fonts/HindSiliguri-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hind Siliguri";
+  src: url("/fonts/HindSiliguri-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Padmo UNICODE — TV-1 হেডার/লেবেলে ব্যবহৃত; আগে ফাইল থাকলেও @font-face নেই বলে লোড হতো না */
+@font-face {
+  font-family: "Padmo";
+  src: url("/fonts/PadmoUNICODE.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Hind Siliguri", "Noto Sans Bengali", "Nirmala UI", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: "Hind Siliguri", "Noto Sans Bengali", "Nirmala UI", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* The app references animate-fadeIn; define it for the preview */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out both;
+}
+
+@keyframes logoSpin360 {
+  0% { transform: perspective(600px) rotateY(0deg); }
+  50% { transform: perspective(600px) rotateY(360deg); }
+  100% { transform: perspective(600px) rotateY(0deg); }
+}
+
+.logo-spin-360 {
+  animation: logoSpin360 16s ease-in-out infinite;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.logo-spin-360:hover {
+  animation-play-state: paused;
+}
+
+/* Utility used by iOS-safe bottom bars if present */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* প্লেসহোল্ডার লেখা যেন সাদা-ধূসর হয়ে অস্পষ্ট না হয় */
+input::placeholder,
+textarea::placeholder {
+  color: currentColor;
+  opacity: 0.7;
+}
+
+/* তারিখের স্ট্রিপে নেটিভ স্ক্রলবার লুকিয়ে স্বচ্ছ swipe-যোগ্য রাখা */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ব্রাউজারের নিজস্ব সারফেসও থিমের সঙ্গে মিলিয়ে নেওয়া */
+::selection {
+  background: #99f6e4;
+  color: #042f2e;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(13, 148, 136, 0.45) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(13, 148, 136, 0.45);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+input,
+textarea {
+  caret-color: #0f766e;
+}
+
+/* কীবোর্ড ব্যবহারকারীর জন্য স্পষ্ট ফোকাস রিং */
+:where(button, a, input, select, textarea, [role="button"]):focus-visible {
+  outline: 2px solid #047857;
+  outline-offset: 2px;
+}
+
+/* নতুন সিরিয়াল কার্ড: cursor-following multicolor border reveal */
+.spotlight-card {
+  /* Glow radius, peak intensity and border thickness are adjusted here. */
+  --glow-radius: 220px;
+  --glow-intensity: 0.75;
+  --border-width: 2px;
+  --card-radius: 24px;
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+  position: relative;
+  isolation: isolate;
+  padding: var(--border-width);
+  border-radius: var(--card-radius);
+  background: rgb(100 116 139 / 28%);
+  box-shadow: 0 12px 32px rgb(15 23 42 / 10%);
+}
+
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  background: #808080;
+  -webkit-mask-image: radial-gradient(
+    var(--glow-radius) circle at var(--mouse-x) var(--mouse-y),
+    rgb(0 0 0 / var(--glow-intensity)) 0%,
+    rgb(0 0 0 / 65%) 35%,
+    transparent 75%
+  );
+  mask-image: radial-gradient(
+    var(--glow-radius) circle at var(--mouse-x) var(--mouse-y),
+    rgb(0 0 0 / var(--glow-intensity)) 0%,
+    rgb(0 0 0 / 65%) 35%,
+    transparent 75%
+  );
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+  pointer-events: none;
+}
+
+.spotlight-card.is-glowing::before,
+.spotlight-card:focus-within::before {
+  opacity: 1;
+}
+
+.spotlight-card__surface {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: calc(var(--card-radius) - var(--border-width));
+}
+
+/* কিউয়ের রোগীর কার্ড: radial spotlight, gentle lift এবং keyboard focus */
+.queue-spotlight-card {
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+  position: relative;
+  isolation: isolate;
+  padding: 1.5px;
+  border-radius: 18px;
+  background: rgb(100 116 139 / 20%);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 7%);
+  transition: box-shadow 300ms ease;
+}
+
+.queue-spotlight-card::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -1px;
+  border-radius: inherit;
+  background: radial-gradient(
+    110px circle at var(--mouse-x) var(--mouse-y),
+    #808080 0%,
+    rgb(128 128 128 / 0.5) 45%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+.queue-spotlight-card:hover {
+  box-shadow: 0 18px 38px rgb(15 23 42 / 14%);
+}
+
+.queue-spotlight-card:hover::before,
+.queue-spotlight-card:focus-within::before {
+  opacity: 1;
+}
+
+/* কিবোর্ডে নির্বাচিত রোগী-প্যানেল: পুরো কার্ড ডার্ক গ্রে */
+.queue-spotlight-card.is-selected {
+  background: rgb(51 65 85 / 94%);
+  box-shadow: 0 12px 30px rgb(15 23 42 / 24%);
+}
+
+.queue-spotlight-card.is-selected::before {
+  opacity: 0;
+}
+
+.queue-spotlight-card__surface {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 16.5px;
+}
+
+/* মোবাইলে ট্যাপ বিলম্ব কমানো */
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* সিস্টেমে motion কমানোর অনুরোধ থাকলে অ্যানিমেশন প্রায় বন্ধ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* হেডার লোগোর ঘূর্ণন সব motion-সেটিংসে চালু থাকবে */
+@media (prefers-reduced-motion: reduce) {
+  .logo-spin-360 {
+    animation-duration: 16s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

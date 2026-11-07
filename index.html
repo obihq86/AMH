@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#064e3b" />
+    <meta name="color-scheme" content="light" />
+    <title>Ansari Medical Hall — Patient Manager</title>
+    <meta name="description" content="আনসারী মেডিকেল হলের রোগী, সিরিয়াল ও Patient ID ব্যবস্থাপনা।" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AMH" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        var isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+        if (isLocal) {
+          // Local dev/preview: never let the PWA service worker cache — unregister any
+          // stale SW and clear its caches so every reload shows the latest code immediately.
+          navigator.serviceWorker.getRegistrations().then(function (rs) {
+            rs.forEach(function (r) { r.unregister(); });
+          }).catch(function () {});
+          if (window.caches) {
+            caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }).catch(function () {});
+          }
+        } else {
+          window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js').catch(function () {});
+          });
+        }
+      }
+    </script>
+  </body>
+</html>

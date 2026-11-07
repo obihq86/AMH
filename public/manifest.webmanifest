@@ -1,0 +1,22 @@
+{
+  "id": "/?source=pwa",
+  "name": "আনছারী মেডিকেল হল — Patient Manager",
+  "short_name": "AMH",
+  "description": "আনসারী মেডিকেল হলের রোগী, সিরিয়াল ও Patient ID ব্যবস্থাপনা।",
+  "lang": "bn",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0b3b2e",
+  "theme_color": "#064e3b",
+  "categories": ["medical", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

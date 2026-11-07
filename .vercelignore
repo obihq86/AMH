@@ -1,0 +1,23 @@
+node_modules/
+dist/
+dist-tv/
+dist-tv-out/
+.vercel/
+.env
+.env.*
+OAuth client ID/
+.preview-tunnel.json
+.npmrc
+*.bak*
+*.snapshot-*
+*.undone-*
+.vscode/
+tools/
+*.log
+*.lnk
+*.zip
+*.tsx.guestapp-feature
+*.tsx.theme-applied-snapshot-*
+* - Copy*.tsx
+*.docx
+*.xlsx
