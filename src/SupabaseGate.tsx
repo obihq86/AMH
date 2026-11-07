@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import App from '../Ansari Medical Hall - Patient Manager_V8.0';
-import { readClinicState, supabase, supabaseConfigError, verifyClinicAccess, writeClinicState } from './lib/supabase';
+import {
+  authenticateClinicPin,
+  checkClinicSession,
+  readClinicState,
+  signOutClinic,
+  verifyClinicAccess,
+  writeClinicState
+} from './lib/clinicApi';
 
 const DEFAULT_ROOM = 'ansari-medical-hall-queue-2026';
 
@@ -36,7 +43,6 @@ function getLocalPayload(roomId: string): Record<string, unknown> | null {
   };
   const patientsByDate = readJson(`amh_patients_${roomId}`, null);
   const patientIdDirectory = readJson(`amh_directory_${roomId}`, null);
-
   if (!patientsByDate && !patientIdDirectory) return null;
 
   return {
@@ -50,10 +56,6 @@ function getLocalPayload(roomId: string): Record<string, unknown> | null {
     deletedRecords: readJson(`amh_deleted_records_${roomId}`, {}),
     pendingApplications: readJson(`amh_applications_${roomId}`, [])
   };
-}
-
-function hasCachedClinicData(roomId: string) {
-  return getLocalPayload(roomId) !== null;
 }
 
 function Panel({ children }: { children: ReactNode }) {
@@ -70,8 +72,6 @@ function Panel({ children }: { children: ReactNode }) {
 export default function SupabaseGate() {
   const [sessionReady, setSessionReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [syncMode, setSyncMode] = useState<'checking' | 'choice' | 'ready' | 'local'>('checking');
@@ -79,32 +79,28 @@ export default function SupabaseGate() {
   const [hasLocalData, setHasLocalData] = useState(false);
 
   useEffect(() => {
-    if (!supabase) {
-      setSessionReady(true);
-      return;
-    }
-
     let active = true;
-    supabase.auth.getSession().then(({ data, error }) => {
+    checkClinicSession().then((isAuthenticated) => {
       if (!active) return;
-      if (error) setErrorText(error.message);
-      setAuthenticated(Boolean(data.session));
+      setAuthenticated(isAuthenticated);
       setSessionReady(true);
     }).catch((error: unknown) => {
       if (!active) return;
-      setErrorText(error instanceof Error ? error.message : 'Could not load the login session.');
+      setErrorText(error instanceof Error ? error.message : 'নিরাপদ সেশন যাচাই করা যায়নি।');
       setSessionReady(true);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthenticated(Boolean(session));
-      if (!session) setSyncMode('checking');
-    });
-
     return () => {
       active = false;
-      subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const handleExpiredSession = () => {
+      setAuthenticated(false);
+      setSyncMode('checking');
+    };
+    window.addEventListener('clinic-session-expired', handleExpiredSession);
+    return () => window.removeEventListener('clinic-session-expired', handleExpiredSession);
   }, []);
 
   const checkCloudState = useCallback(async () => {
@@ -118,7 +114,7 @@ export default function SupabaseGate() {
         setSyncMode('ready');
         return;
       }
-      const hasData = hasCachedClinicData(roomId);
+      const hasData = getLocalPayload(roomId) !== null;
       setHasLocalData(hasData);
       setSyncMode(hasData ? 'choice' : 'ready');
     } catch (error) {
@@ -132,20 +128,12 @@ export default function SupabaseGate() {
     if (authenticated) void checkCloudState();
   }, [authenticated, checkCloudState]);
 
-  const handleLogin = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!supabase) return;
-    setBusy(true);
+  const handleCloudLogin = useCallback(async (pin: string) => {
     setErrorText('');
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) setErrorText(error.message);
-    } catch (error) {
-      setErrorText(error instanceof Error ? error.message : 'লগইন করা যায়নি। আবার চেষ্টা করুন।');
-    } finally {
-      setBusy(false);
-    }
-  };
+    await authenticateClinicPin(pin);
+    setAuthenticated(true);
+    setSyncMode('checking');
+  }, []);
 
   const handleImport = async () => {
     const payload = getLocalPayload(roomId);
@@ -168,23 +156,10 @@ export default function SupabaseGate() {
   };
 
   const handleSignOut = async () => {
-    if (!supabase) return;
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) setErrorText(error.message);
-    } catch (error) {
-      setErrorText(error instanceof Error ? error.message : 'লগআউট করা যায়নি। আবার চেষ্টা করুন।');
-    }
+    await signOutClinic();
+    setAuthenticated(false);
+    setSyncMode('checking');
   };
-
-  if (!supabase) {
-    return (
-      <Panel>
-        <p role="alert" className="text-red-700">{supabaseConfigError}</p>
-        <p className="mt-3 text-sm">Configure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in the deployment environment.</p>
-      </Panel>
-    );
-  }
 
   if (!sessionReady) {
     return <Panel><p>নিরাপদ সংযোগ যাচাই হচ্ছে…</p></Panel>;
@@ -192,35 +167,22 @@ export default function SupabaseGate() {
 
   if (!authenticated) {
     return (
-      <Panel>
-        <p className="mb-5 text-sm">ক্লাউড ডেটাবেসে প্রবেশ করতে প্রতিষ্ঠানের Supabase লগইন ব্যবহার করুন।</p>
-        <form onSubmit={handleLogin} className="space-y-4">
-          <label className="block text-sm font-medium">
-            ইমেইল
-            <input autoComplete="username" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded-lg border p-3" />
-          </label>
-          <label className="block text-sm font-medium">
-            পাসওয়ার্ড
-            <input autoComplete="current-password" type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded-lg border p-3" />
-          </label>
-          {errorText && <p role="alert" className="text-sm text-red-700">{errorText}</p>}
-          <button disabled={busy} className="w-full rounded-lg bg-emerald-800 p-3 font-semibold text-white disabled:opacity-60">
-            {busy ? 'যাচাই হচ্ছে…' : 'লগইন'}
-          </button>
-        </form>
-        <p className="mt-4 text-xs text-slate-500">অ্যাকাউন্ট তৈরি/পাসওয়ার্ড রিসেট Supabase Dashboard থেকে অ্যাডমিনকে করতে হবে।</p>
-      </Panel>
+      <App
+        cloudSyncEnabled={false}
+        onCloudLogin={handleCloudLogin}
+        onCloudLogout={handleSignOut}
+      />
     );
   }
 
   if (syncMode === 'checking') {
     return (
       <Panel>
-        <p>Supabase ডেটাবেস যাচাই হচ্ছে…</p>
+        <p>নিরাপদ ডেটাবেস সংযোগ যাচাই হচ্ছে…</p>
         {errorText && (
           <div className="mt-4 space-y-3">
             <p role="alert" className="text-sm text-red-700">{errorText}</p>
-            <p className="text-sm">SQL migration চালানো হয়েছে এবং shared login-টি `clinic_authorized_users`-এ অনুমোদিত কি না নিশ্চিত করে আবার চেষ্টা করুন।</p>
+            <p className="text-sm">Server PIN gateway-এর environment secrets ও Supabase migration যাচাই করে আবার চেষ্টা করুন।</p>
             <button onClick={() => void checkCloudState()} className="rounded-lg bg-emerald-800 px-4 py-2 text-white">আবার চেষ্টা</button>
           </div>
         )}
@@ -250,17 +212,16 @@ export default function SupabaseGate() {
 
   return (
     <>
-      <App cloudSyncEnabled={syncMode === 'ready'} />
-      <div className="fixed bottom-3 left-3 z-[10000] flex gap-2">
-        {syncMode === 'local' ? (
-          <button onClick={() => void checkCloudState()} className="rounded-full bg-amber-700 px-3 py-2 text-xs font-semibold text-white shadow-lg">
-            ক্লাউড সিঙ্ক চালু করুন
-          </button>
-        ) : null}
-        <button onClick={() => void handleSignOut()} className="rounded-full bg-slate-800 px-3 py-2 text-xs font-semibold text-white shadow-lg">
-          ক্লাউড লগআউট
+      <App
+        cloudSyncEnabled={syncMode === 'ready'}
+        onCloudLogin={syncMode === 'ready' ? handleCloudLogin : undefined}
+        onCloudLogout={handleSignOut}
+      />
+      {syncMode === 'local' ? (
+        <button onClick={() => void checkCloudState()} className="fixed bottom-3 left-3 z-[10000] rounded-full bg-amber-700 px-3 py-2 text-xs font-semibold text-white shadow-lg">
+          ক্লাউড সিঙ্ক চালু করুন
         </button>
-      </div>
+      ) : null}
       {hasLocalData && syncMode === 'local' && (
         <div className="fixed bottom-14 left-3 z-[10000] rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow">
           ক্লাউড সিঙ্ক বন্ধ; তথ্য এই ডিভাইসেই থাকবে।

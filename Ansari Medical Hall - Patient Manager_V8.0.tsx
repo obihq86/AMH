@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { QueueSpotlightCard, SpotlightCard } from './src/components/SpotlightCard';
 import { THEMES, TRANSLATIONS } from './src/lib/theme';
 import { formatDateToDDMMYYYY, toBengaliDigits, formatBengaliFullDate, formatBengaliHeaderDate } from './src/lib/format';
-import { readClinicState, supabase, writeClinicState } from './src/lib/supabase';
+import { readClinicSnapshot, readClinicState, writeClinicState } from './src/lib/clinicApi';
 import { 
   Users, 
   Plus, 
@@ -960,11 +960,13 @@ html.amh-screen-rotation-active #root > div {
 `; 
 
 const DEFAULT_CHANNEL_ID = 'ansari-medical-hall-queue-2026';
+const SERVER_CLOUD_USER = Object.freeze({ id: 'server-session' });
 // লোকাল (বাংলাদেশ) তারিখ — UTC নয়; মাঝরাতে নতুন দিনে বদলে যায়
 const localDateKey = (date = new Date()) => {
   const d = date;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+const normalizeNumericPin = (value) => String(value).replace(/[০-৯]/g, digit => String('০১২৩৪৫৬৭৮৯'.indexOf(digit))).replace(/\D/g, '');
 let TODAY_KEY = localDateKey();
 
 // ডিফল্ট Apps Script WebApp URL (Google Sheet/Drive সিঙ্ক) — সেটিংসে খালি থাকলে এটি ব্যবহৃত হয়
@@ -2242,7 +2244,7 @@ function generateCardCanvas(patient, clinicName, doctorTitle, ageText) {
   return canvas;
 }
 
-export default function App({ cloudSyncEnabled = true } = {}) {
+export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogout } = {}) {
   const t = TRANSLATIONS.bn;
 
   const [activeTheme, setActiveTheme] = useState(() => {
@@ -2315,6 +2317,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
       if (typeof window !== 'undefined') {
+        if (onCloudLogin && !cloudSyncEnabled) return false;
         if (resolveUrlSessionUser()) return true;
         const reqPass = localStorage.getItem('amh_require_login_password');
         const isPassRequired = reqPass !== null ? JSON.parse(reqPass) : true;
@@ -2392,6 +2395,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     return (DEFAULT_TEAM_MEMBERS.find(m => m.isAdmin) || DEFAULT_TEAM_MEMBERS[0]).id;
   });
   const [loginPassword, setLoginPassword] = useState('');
+  const [loginBusy, setLoginBusy] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => {
     try { return typeof window !== 'undefined' && localStorage.getItem('amh_remember_me') === '1'; } catch { return false; }
   });
@@ -3267,7 +3271,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     };
   }, [isHeaderMinimized, currentUser?.isAdmin, activeTab]);
 
-  const [cloudUser, setCloudUser] = useState(null);
+  const cloudUser = cloudSyncEnabled ? SERVER_CLOUD_USER : null;
   const [syncChannelId, setSyncChannelId] = useState(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -5517,31 +5521,6 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     setCurrentTimeTick(Date.now());
   }, [currentTimeTick]);
 
-  useEffect(() => {
-    if (!supabase) return;
-    let isMounted = true;
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!isMounted) return;
-      if (error) {
-        console.error('Supabase session error:', error);
-        setSyncStatus('disconnected');
-        return;
-      }
-      setCloudUser(data.session?.user || null);
-    }).catch((err) => {
-      if (!isMounted) return;
-      console.error('Supabase session error:', err);
-      setSyncStatus('disconnected');
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (isMounted) setCloudUser(session?.user || null);
-    });
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
   const latestStateRef = useRef({
     patientsByDate,
     patientIdDirectory,
@@ -6181,7 +6160,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         }
       } catch {}
 
-      if (cloudSyncEnabled && supabase && cloudUser) {
+      if (cloudSyncEnabled && cloudUser) {
         setSyncStatus('syncing');
         void writeClinicState(safeRoomKey, packetObj)
           .then(() => {
@@ -6455,44 +6434,33 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     }, 45000);
 
     let unsubscribeSnapshot = null;
-    if (supabase && cloudUser && cloudSyncEnabled) {
-      const channel = supabase
-        .channel(`clinic-state-${safeRoomKey}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'clinic_sync_state', filter: `room_id=eq.${safeRoomKey}` },
-          (event) => {
-            if (isMounted && event.new && typeof event.new === 'object' && event.new.payload) {
-              applyIncomingSyncPayload(event.new.payload);
-            }
-          }
-        )
-        .subscribe((status, err) => {
+    if (cloudUser && cloudSyncEnabled) {
+      let latestRemoteTimestamp = 0;
+      let hasLoadedSnapshot = false;
+      const pollClinicState = async () => {
+        try {
+          const snapshot = await readClinicSnapshot(safeRoomKey);
           if (!isMounted) return;
-          if (status === 'SUBSCRIBED') {
-            setConnectedBrokersCount(1);
-            setSyncStatus('connected');
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            setConnectedBrokersCount(0);
-            setSyncStatus('disconnected');
-            console.error('Supabase realtime connection failed:', err || status);
-            setSyncToast('লাইভ সিঙ্ক সংযোগ বিচ্ছিন্ন; পুনরায় চেষ্টা করুন');
+          if (snapshot.payload && snapshot.updatedAt > latestRemoteTimestamp) {
+            latestRemoteTimestamp = snapshot.updatedAt;
+            applyIncomingSyncPayload(snapshot.payload, {
+              allowSelf: true,
+              forceApply: !hasLoadedSnapshot
+            });
+            hasLoadedSnapshot = true;
           }
-        });
-      unsubscribeSnapshot = () => { void supabase.removeChannel(channel); };
-
-      void readClinicState(safeRoomKey)
-        .then((payload) => {
-          if (isMounted && payload) {
-            applyIncomingSyncPayload(payload, { allowSelf: true, forceApply: true });
-          }
-        })
-        .catch((err) => {
+          setConnectedBrokersCount(1);
+          setSyncStatus('connected');
+        } catch (err) {
           if (!isMounted) return;
+          setConnectedBrokersCount(0);
           setSyncStatus('disconnected');
-          console.error('Supabase clinic state read failed:', err);
-          setSyncToast('ক্লাউড ডেটা পড়া যায়নি—ডেটাবেস সংযোগ পরীক্ষা করুন');
-        });
+          console.error('Server-side clinic state read failed:', err);
+        }
+      };
+      void pollClinicState();
+      const pollId = setInterval(() => void pollClinicState(), 5000);
+      unsubscribeSnapshot = () => clearInterval(pollId);
     } else {
       setConnectedBrokersCount(0);
       setSyncStatus('disconnected');
@@ -6520,7 +6488,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const handleManualSyncRefresh = useCallback(async () => {
     setSyncStatus('syncing');
     const safeRoomKey = normalizeRoomKey(syncChannelId);
-    if (!cloudSyncEnabled || !supabase || !cloudUser) {
+    if (!cloudSyncEnabled || !cloudUser) {
       setSyncStatus('disconnected');
       setSyncToast('ক্লাউড সিঙ্ক বন্ধ; তথ্য এই ডিভাইসেই আছে');
       setTimeout(() => setSyncToast(''), 3000);
@@ -6603,14 +6571,28 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     });
   }, [patientsByDate, teamMembers, chamberStartTime, avgServiceMinutes, whatsappTemplate, patientIdDirectory, patientIdPrefix, broadcastFullState]);
 
-  const handleDeviceLogin = (e) => {
+  const handleDeviceLogin = async (e) => {
     e.preventDefault();
     const member = teamMembers.find(m => m.id === loginUserId);
     if (!member) {
       setLoginError('সঠিক ইউজার নির্বাচন করুন!');
       return;
     }
-    if (requireLoginPassword) {
+    if (onCloudLogin) {
+      if (!/^\d{8}$/.test(loginPassword)) {
+        setLoginError('৮ অঙ্কের numeric password লিখুন।');
+        return;
+      }
+      setLoginBusy(true);
+      try {
+        await onCloudLogin(loginPassword);
+      } catch (error) {
+        setLoginError(error instanceof Error ? error.message : 'নিরাপদ লগইন করা যায়নি।');
+        setLoginBusy(false);
+        return;
+      }
+      setLoginBusy(false);
+    } else if (requireLoginPassword) {
       if (!loginPassword || member.pin !== loginPassword) {
         setLoginError('ভুল পাসওয়ার্ড / পিন কোড! সঠিক পাসওয়ার্ড দেওয়া আবশ্যক।');
         return;
@@ -6640,7 +6622,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   };
 
   // লগআউট হ্যান্ডলার — সেশন মুছে ফেলা
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsAuthenticated(false);
     setLoginPassword('');
     setLoginError('');
@@ -6653,6 +6635,14 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       localStorage.setItem('amh_remember_me', '0');
     } catch {}
     setRememberMe(false);
+    if (onCloudLogout) {
+      try {
+        await onCloudLogout();
+      } catch (error) {
+        console.error('Could not end the secure clinic session:', error);
+        setLoginError('নিরাপদ সেশন বন্ধ করা যায়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।');
+      }
+    }
   };
 
   // দিন বদলালে (রিমেম্বার মি বন্ধ থাকলে) স্বয়ংক্রিয়ভাবে লগইন স্ক্রিনে ফিরিয়ে দেয় — "প্রতিদিন একবার লগইন" নিয়ম বজায় রাখতে
@@ -6665,6 +6655,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         if (loginDay && loginDay !== localDateKey()) {
           setIsAuthenticated(false);
           sessionStorage.removeItem('amh_session_authenticated');
+          if (onCloudLogout) void onCloudLogout();
         }
       } catch {}
     };
@@ -6672,7 +6663,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     const onVis = () => { if (!document.hidden) recheck(); };
     document.addEventListener('visibilitychange', onVis);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, onCloudLogout]);
 
   // গেস্ট লগইন হ্যান্ডলার (পাসওয়ার্ড ছাড়া সিরিয়াল ও কিউ দেখার জন্য)
   useEffect(() => {
@@ -9826,18 +9817,23 @@ export default function App({ cloudSyncEnabled = true } = {}) {
               </select>
             </div>
 
-            {requireLoginPassword ? (
+            {requireLoginPassword || onCloudLogin ? (
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">পাসওয়ার্ড / পিন কোড:</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {onCloudLogin ? '৮ অঙ্কের numeric password:' : 'পাসওয়ার্ড / পিন কোড:'}
+                </label>
                 <div className="relative">
                   <input
                     type={showLoginPassword ? 'text' : 'password'}
                     required
                     autoFocus
-                    placeholder="পাসওয়ার্ড / পিন কোড লিখুন"
+                    inputMode={onCloudLogin ? 'numeric' : undefined}
+                    pattern={onCloudLogin ? '\\d{8}' : undefined}
+                    maxLength={onCloudLogin ? 8 : undefined}
+                    placeholder={onCloudLogin ? '৮ অঙ্ক লিখুন' : 'পাসওয়ার্ড / পিন কোড লিখুন'}
                     value={loginPassword}
                     onChange={(e) => {
-                      setLoginPassword(e.target.value);
+                      setLoginPassword(onCloudLogin ? normalizeNumericPin(e.target.value).slice(0, 8) : e.target.value);
                       setLoginError('');
                     }}
                     className="w-full px-3 py-3 pr-12 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
@@ -9885,15 +9881,16 @@ export default function App({ cloudSyncEnabled = true } = {}) {
 
             <button
               type="submit"
+              disabled={loginBusy}
               className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2 cursor-pointer"
             >
               <UserCheck className="w-4 h-4" />
-              <span>{requireLoginPassword ? 'লগইন করুন' : 'সরাসরি প্রবেশ করুন (পাসওয়ার্ড ছাড়া)'}</span>
+              <span>{loginBusy ? 'যাচাই হচ্ছে…' : onCloudLogin || requireLoginPassword ? 'নিরাপদে লগইন করুন' : 'সরাসরি প্রবেশ করুন (পাসওয়ার্ড ছাড়া)'}</span>
             </button>
           </form>
 
           {/* বিকল্প কুইক লগইন অপশন: গেস্ট লগইন ও TV MOOD */}
-          <div className="pt-2 border-t border-slate-200 space-y-2.5">
+          {!onCloudLogin && <div className="pt-2 border-t border-slate-200 space-y-2.5">
             <div className="text-[11px] font-bold text-center text-slate-500 uppercase tracking-wider">
               পাসওয়ার্ড ছাড়া প্রবেশ
             </div>
@@ -9941,7 +9938,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                 </button>
               </SpotlightCard>
             </div>
-          </div>
+          </div>}
         </div>
         </SpotlightCard>
       </div>
