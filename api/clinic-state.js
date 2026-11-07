@@ -2,7 +2,6 @@ import {
   callSupabase,
   getRequestBody,
   getServerConfig,
-  hasValidSession,
   sendJson
 } from '../server/clinic-server.js';
 
@@ -18,9 +17,6 @@ export default async function handler(req, res) {
 
   try {
     const config = getServerConfig();
-    if (!hasValidSession(req, config.sessionSecret)) {
-      return sendJson(res, 401, { error: 'লগইন সেশন শেষ হয়েছে। আবার প্রবেশ করুন।' });
-    }
     if (Number(req.headers['content-length']) > 4_000_000) {
       return sendJson(res, 413, { error: 'Clinic state is too large to save.' });
     }

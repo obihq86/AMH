@@ -2244,7 +2244,7 @@ function generateCardCanvas(patient, clinicName, doctorTitle, ageText) {
   return canvas;
 }
 
-export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogout } = {}) {
+export default function App({ cloudSyncEnabled = true } = {}) {
   const t = TRANSLATIONS.bn;
 
   const [activeTheme, setActiveTheme] = useState(() => {
@@ -2317,7 +2317,6 @@ export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogo
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
       if (typeof window !== 'undefined') {
-        if (onCloudLogin && !cloudSyncEnabled) return false;
         if (resolveUrlSessionUser()) return true;
         const reqPass = localStorage.getItem('amh_require_login_password');
         const isPassRequired = reqPass !== null ? JSON.parse(reqPass) : true;
@@ -2395,7 +2394,6 @@ export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogo
     return (DEFAULT_TEAM_MEMBERS.find(m => m.isAdmin) || DEFAULT_TEAM_MEMBERS[0]).id;
   });
   const [loginPassword, setLoginPassword] = useState('');
-  const [loginBusy, setLoginBusy] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => {
     try { return typeof window !== 'undefined' && localStorage.getItem('amh_remember_me') === '1'; } catch { return false; }
   });
@@ -6578,21 +6576,7 @@ export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogo
       setLoginError('সঠিক ইউজার নির্বাচন করুন!');
       return;
     }
-    if (onCloudLogin) {
-      if (!/^\d{8}$/.test(loginPassword)) {
-        setLoginError('৮ অঙ্কের numeric password লিখুন।');
-        return;
-      }
-      setLoginBusy(true);
-      try {
-        await onCloudLogin(loginPassword);
-      } catch (error) {
-        setLoginError(error instanceof Error ? error.message : 'নিরাপদ লগইন করা যায়নি।');
-        setLoginBusy(false);
-        return;
-      }
-      setLoginBusy(false);
-    } else if (requireLoginPassword) {
+    if (requireLoginPassword) {
       if (!loginPassword || member.pin !== loginPassword) {
         setLoginError('ভুল পাসওয়ার্ড / পিন কোড! সঠিক পাসওয়ার্ড দেওয়া আবশ্যক।');
         return;
@@ -6635,14 +6619,6 @@ export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogo
       localStorage.setItem('amh_remember_me', '0');
     } catch {}
     setRememberMe(false);
-    if (onCloudLogout) {
-      try {
-        await onCloudLogout();
-      } catch (error) {
-        console.error('Could not end the secure clinic session:', error);
-        setLoginError('নিরাপদ সেশন বন্ধ করা যায়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।');
-      }
-    }
   };
 
   // দিন বদলালে (রিমেম্বার মি বন্ধ থাকলে) স্বয়ংক্রিয়ভাবে লগইন স্ক্রিনে ফিরিয়ে দেয় — "প্রতিদিন একবার লগইন" নিয়ম বজায় রাখতে
@@ -6655,7 +6631,6 @@ export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogo
         if (loginDay && loginDay !== localDateKey()) {
           setIsAuthenticated(false);
           sessionStorage.removeItem('amh_session_authenticated');
-          if (onCloudLogout) void onCloudLogout();
         }
       } catch {}
     };
@@ -6663,7 +6638,7 @@ export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogo
     const onVis = () => { if (!document.hidden) recheck(); };
     document.addEventListener('visibilitychange', onVis);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); };
-  }, [isAuthenticated, onCloudLogout]);
+  }, [isAuthenticated]);
 
   // গেস্ট লগইন হ্যান্ডলার (পাসওয়ার্ড ছাড়া সিরিয়াল ও কিউ দেখার জন্য)
   useEffect(() => {
@@ -9817,23 +9792,20 @@ export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogo
               </select>
             </div>
 
-            {requireLoginPassword || onCloudLogin ? (
+            {requireLoginPassword ? (
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {onCloudLogin ? '৮ অঙ্কের numeric password:' : 'পাসওয়ার্ড / পিন কোড:'}
+                  পাসওয়ার্ড / পিন কোড:
                 </label>
                 <div className="relative">
                   <input
                     type={showLoginPassword ? 'text' : 'password'}
                     required
                     autoFocus
-                    inputMode={onCloudLogin ? 'numeric' : undefined}
-                    pattern={onCloudLogin ? '\\d{8}' : undefined}
-                    maxLength={onCloudLogin ? 8 : undefined}
-                    placeholder={onCloudLogin ? '৮ অঙ্ক লিখুন' : 'পাসওয়ার্ড / পিন কোড লিখুন'}
+                    placeholder="পাসওয়ার্ড / পিন কোড লিখুন"
                     value={loginPassword}
                     onChange={(e) => {
-                      setLoginPassword(onCloudLogin ? normalizeNumericPin(e.target.value).slice(0, 8) : e.target.value);
+                      setLoginPassword(e.target.value);
                       setLoginError('');
                     }}
                     className="w-full px-3 py-3 pr-12 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
@@ -9881,16 +9853,15 @@ export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogo
 
             <button
               type="submit"
-              disabled={loginBusy}
               className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2 cursor-pointer"
             >
               <UserCheck className="w-4 h-4" />
-              <span>{loginBusy ? 'যাচাই হচ্ছে…' : onCloudLogin || requireLoginPassword ? 'নিরাপদে লগইন করুন' : 'সরাসরি প্রবেশ করুন (পাসওয়ার্ড ছাড়া)'}</span>
+              <span>{requireLoginPassword ? 'লগইন করুন' : 'সরাসরি প্রবেশ করুন (পাসওয়ার্ড ছাড়া)'}</span>
             </button>
           </form>
 
           {/* বিকল্প কুইক লগইন অপশন: গেস্ট লগইন ও TV MOOD */}
-          {!onCloudLogin && <div className="pt-2 border-t border-slate-200 space-y-2.5">
+          <div className="pt-2 border-t border-slate-200 space-y-2.5">
             <div className="text-[11px] font-bold text-center text-slate-500 uppercase tracking-wider">
               পাসওয়ার্ড ছাড়া প্রবেশ
             </div>
@@ -9938,7 +9909,7 @@ export default function App({ cloudSyncEnabled = true, onCloudLogin, onCloudLogo
                 </button>
               </SpotlightCard>
             </div>
-          </div>}
+          </div>
         </div>
         </SpotlightCard>
       </div>

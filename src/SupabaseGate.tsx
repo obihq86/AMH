@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import App from '../Ansari Medical Hall - Patient Manager_V8.0';
-import {
-  authenticateClinicPin,
-  checkClinicSession,
-  readClinicState,
-  signOutClinic,
-  verifyClinicAccess,
-  writeClinicState
-} from './lib/clinicApi';
+import { readClinicState, writeClinicState } from './lib/clinicApi';
 
 const DEFAULT_ROOM = 'ansari-medical-hall-queue-2026';
 
@@ -70,45 +63,16 @@ function Panel({ children }: { children: ReactNode }) {
 }
 
 export default function SupabaseGate() {
-  const [sessionReady, setSessionReady] = useState(false);
-  const [authenticated, setAuthenticated] = useState(false);
+  const [syncMode, setSyncMode] = useState<'checking' | 'choice' | 'ready' | 'local'>('checking');
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState('');
-  const [syncMode, setSyncMode] = useState<'checking' | 'choice' | 'ready' | 'local'>('checking');
   const [roomId] = useState(getRoomId);
   const [hasLocalData, setHasLocalData] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    checkClinicSession().then((isAuthenticated) => {
-      if (!active) return;
-      setAuthenticated(isAuthenticated);
-      setSessionReady(true);
-    }).catch((error: unknown) => {
-      if (!active) return;
-      setErrorText(error instanceof Error ? error.message : 'নিরাপদ সেশন যাচাই করা যায়নি।');
-      setSessionReady(true);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleExpiredSession = () => {
-      setAuthenticated(false);
-      setSyncMode('checking');
-    };
-    window.addEventListener('clinic-session-expired', handleExpiredSession);
-    return () => window.removeEventListener('clinic-session-expired', handleExpiredSession);
-  }, []);
-
   const checkCloudState = useCallback(async () => {
-    if (!authenticated) return;
     setSyncMode('checking');
     setErrorText('');
     try {
-      await verifyClinicAccess();
       const remoteState = await readClinicState(roomId);
       if (remoteState) {
         setSyncMode('ready');
@@ -120,20 +84,12 @@ export default function SupabaseGate() {
     } catch (error) {
       console.error('Could not load the Supabase clinic state:', error);
       setErrorText(error instanceof Error ? error.message : 'Supabase database connection failed.');
-      setSyncMode('checking');
     }
-  }, [authenticated, roomId]);
+  }, [roomId]);
 
   useEffect(() => {
-    if (authenticated) void checkCloudState();
-  }, [authenticated, checkCloudState]);
-
-  const handleCloudLogin = useCallback(async (pin: string) => {
-    setErrorText('');
-    await authenticateClinicPin(pin);
-    setAuthenticated(true);
-    setSyncMode('checking');
-  }, []);
+    void checkCloudState();
+  }, [checkCloudState]);
 
   const handleImport = async () => {
     const payload = getLocalPayload(roomId);
@@ -155,35 +111,15 @@ export default function SupabaseGate() {
     }
   };
 
-  const handleSignOut = async () => {
-    await signOutClinic();
-    setAuthenticated(false);
-    setSyncMode('checking');
-  };
-
-  if (!sessionReady) {
-    return <Panel><p>নিরাপদ সংযোগ যাচাই হচ্ছে…</p></Panel>;
-  }
-
-  if (!authenticated) {
-    return (
-      <App
-        cloudSyncEnabled={false}
-        onCloudLogin={handleCloudLogin}
-        onCloudLogout={handleSignOut}
-      />
-    );
-  }
-
   if (syncMode === 'checking') {
     return (
       <Panel>
-        <p>নিরাপদ ডেটাবেস সংযোগ যাচাই হচ্ছে…</p>
+        <p>ক্লাউড ডেটাবেস সংযোগ যাচাই হচ্ছে…</p>
         {errorText && (
           <div className="mt-4 space-y-3">
             <p role="alert" className="text-sm text-red-700">{errorText}</p>
-            <p className="text-sm">Server PIN gateway-এর environment secrets ও Supabase migration যাচাই করে আবার চেষ্টা করুন।</p>
             <button onClick={() => void checkCloudState()} className="rounded-lg bg-emerald-800 px-4 py-2 text-white">আবার চেষ্টা</button>
+            <button onClick={() => setSyncMode('local')} className="ml-2 rounded-lg border border-slate-300 px-4 py-2">স্থানীয়ভাবে চালান</button>
           </div>
         )}
       </Panel>
@@ -195,15 +131,15 @@ export default function SupabaseGate() {
       <Panel>
         <h2 className="text-lg font-semibold">পুরোনো ডিভাইসের তথ্য পাওয়া গেছে</h2>
         <p className="mt-2 text-sm leading-6">
-          এই ব্রাউজারে রোগীর তথ্য আছে, কিন্তু Supabase ক্লাউডে এখনো কোনো রেকর্ড নেই। আপনার সম্মতি ছাড়া তথ্য কপি করা হবে না।
+          এই browser-এ clinic data আছে, কিন্তু Supabase cloud-এ এখনো কোনো record নেই। আপনার সম্মতি ছাড়া তথ্য কপি করা হবে না।
         </p>
         {errorText && <p role="alert" className="mt-3 text-sm text-red-700">{errorText}</p>}
         <div className="mt-5 space-y-3">
           <button disabled={busy} onClick={() => void handleImport()} className="w-full rounded-lg bg-emerald-800 p-3 font-semibold text-white disabled:opacity-60">
-            {busy ? 'নিরাপদে কপি হচ্ছে…' : 'এই ডিভাইসের তথ্য ক্লাউডে কপি করুন'}
+            {busy ? 'কপি হচ্ছে…' : 'এই ডিভাইসের তথ্য ক্লাউডে কপি করুন'}
           </button>
           <button disabled={busy} onClick={() => setSyncMode('local')} className="w-full rounded-lg border border-slate-300 p-3 font-semibold">
-            এখন নয় — এই ডিভাইসে স্থানীয়ভাবে চালান
+            এখন নয় — স্থানীয়ভাবে চালান
           </button>
         </div>
       </Panel>
@@ -212,11 +148,7 @@ export default function SupabaseGate() {
 
   return (
     <>
-      <App
-        cloudSyncEnabled={syncMode === 'ready'}
-        onCloudLogin={syncMode === 'ready' ? handleCloudLogin : undefined}
-        onCloudLogout={handleSignOut}
-      />
+      <App cloudSyncEnabled={syncMode === 'ready'} />
       {syncMode === 'local' ? (
         <button onClick={() => void checkCloudState()} className="fixed bottom-3 left-3 z-[10000] rounded-full bg-amber-700 px-3 py-2 text-xs font-semibold text-white shadow-lg">
           ক্লাউড সিঙ্ক চালু করুন

@@ -12,11 +12,16 @@ function requiredEnv(name) {
 export function getServerConfig() {
   const baseUrl = requiredEnv('SUPABASE_URL').replace(/\/+$/, '');
   const serviceKey = requiredEnv('SUPABASE_SERVICE_ROLE_KEY');
+  if (!/^https:\/\/[^/]+$/i.test(baseUrl)) throw new Error('SUPABASE_URL must be an HTTPS project URL.');
+  return { baseUrl, serviceKey };
+}
+
+export function getAuthConfig() {
+  const config = getServerConfig();
   const sessionSecret = requiredEnv('CLINIC_SESSION_SECRET');
   const pinHash = requiredEnv('CLINIC_PIN_HASH');
-  if (!/^https:\/\/[^/]+$/i.test(baseUrl)) throw new Error('SUPABASE_URL must be an HTTPS project URL.');
   if (Buffer.byteLength(sessionSecret) < 32) throw new Error('CLINIC_SESSION_SECRET must be at least 32 bytes.');
-  return { baseUrl, serviceKey, sessionSecret, pinHash };
+  return { ...config, sessionSecret, pinHash };
 }
 
 function signature(value, secret) {

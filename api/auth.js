@@ -2,7 +2,7 @@ import {
   checkLoginLimit,
   createSession,
   getRequestBody,
-  getServerConfig,
+  getAuthConfig,
   hasValidSession,
   ipHash,
   recordLoginAttempt,
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const config = getServerConfig();
+    const config = getAuthConfig();
     if (req.method === 'GET') {
       const authenticated = hasValidSession(req, config.sessionSecret);
       return sendJson(res, 200, { authenticated });

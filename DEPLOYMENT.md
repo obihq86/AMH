@@ -1,34 +1,30 @@
 # অনলাইনে চালু করার ধাপ
 
-## Server-side PIN secret তৈরি
+## লগইন
 
-Project-এর root folder-এ terminal খুলে চালান:
-
-```powershell
-node tools/generate-clinic-secrets.mjs
-```
-
-Prompt-এ আপনার ৮ অঙ্কের numeric password লিখুন। টাইপ করার সময় password দেখা যাবে না। Tool `CLINIC_PIN_HASH` এবং `CLINIC_SESSION_SECRET` তৈরি করবে; password নিজে output বা source file-এ রাখা হয় না। এই generated values নিরাপদে কপি করে Vercel-এর environment variables-এ বসান। PIN chat বা source code-এ পাঠাবেন না।
+অ্যাপের স্টাফ/অ্যাডমিন লগইন, গেস্ট মোড এবং TV MOOD আগের মতো অ্যাপের ভেতরেই পরিচালিত হয়। Supabase বা Vercel কোনো PIN যাচাই করে না এবং লগইন সেশন নিয়ন্ত্রণ করে না। Staff PIN ও login preference অ্যাপের আগের নিয়ম অনুযায়ী থাকে।
 
 ## Vercel ও Supabase
 
-প্রথমে Supabase **Project Settings → API** থেকে Project URL এবং `service_role` secret key নিন। `service_role` key কখনো browser/client environment variable-এ দেবেন না।
+Supabase **Project Settings → API** থেকে Project URL এবং `service_role` secret key নিন। `service_role` key কখনো browser/client environment variable-এ দেবেন না।
 
 Vercel → **Project → Settings → Environment Variables**-এ Production environment-এর জন্য যোগ করুন:
 
 - `SUPABASE_URL` — Supabase Project URL
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase server-only service role secret
-- `CLINIC_PIN_HASH` — local secret generator-এর output
-- `CLINIC_SESSION_SECRET` — একই generator-এর output
 
-এরপর নতুন deployment তৈরি করুন। Service role key শুধু server API functions-এ ব্যবহৃত হবে; `VITE_` prefix দেবেন না। API প্রতি IP-তে ১৫ মিনিটে ৫টি ভুল চেষ্টা হলে ১৫ মিনিটের জন্য login বন্ধ করে এবং ১২ ঘণ্টার HttpOnly session cookie দেয়।
+এরপর নতুন deployment তৈরি করুন। Service role key শুধু server API functions-এ ব্যবহৃত হবে; `VITE_` prefix দেবেন না।
 
-Deployment Protection চালু রেখেই Supabase Dashboard → **SQL Editor**-এ `supabase/migrations/20261107010000_enable_server_pin_gateway.sql`-এর সম্পূর্ণ SQL চালান। এটি `clinic_sync_state`-এ browser-এর direct access বন্ধ করে, এবং rate-limit table ও server-only functions তৈরি করে। এরপর PIN login, database read/write ও cloud logout যাচাই করুন।
+Supabase Dashboard → **SQL Editor**-এ `supabase/migrations/20261107010000_enable_server_pin_gateway.sql`-এর সম্পূর্ণ SQL চালান। এটি Supabase table-এ browser-এর direct access বন্ধ রাখে। App-এর cloud data read/write Vercel API দিয়ে হয়; এই API-তে app-এর login যাচাই করা হয় না।
 
-এই ব্যবস্থায় Supabase Auth email account বা allowlist user তৈরি করতে হবে না। ৮ অঙ্কের numeric password-এ অক্ষরভিত্তিক password-এর চেয়ে কম সম্ভাব্য combination থাকে; PIN কাউকে দেবেন না, এবং যাচাই শেষ না হওয়া পর্যন্ত Vercel Deployment Protection চালু রাখুন।
+## Guest ও TV Mode এবং ডেটার প্রবেশাধিকার
+
+Guest Mode আগের মতো সিরিয়ালের আবেদন করতে ও live queue দেখতে পারবে; TV MOOD live display board দেখাবে। Cloud data-ও app-এর login screen থেকে সরাসরি পড়া যাবে।
+
+এটি public access: internet-এ যে কেউ app-এর login screen-এ না ঢুকেই API দিয়ে clinic data পড়তে বা বদলাতে পারে। Staff login শুধু app-এর UI নিয়ন্ত্রণ করে; cloud API-এর authorization নয়। তাই public access গ্রহণযোগ্য নয় এমন রোগীর/ক্লিনিকের তথ্য production-এ রাখবেন না।
 
 ## পুরোনো ডেটা
 
-প্রথম সফল login-এ app এই browser-এ cache করা clinic data খুঁজবে। Supabase table ফাঁকা হলে, data cloud-এ কপি করার আগে app স্পষ্ট সম্মতি চাইবে। **এই ডিভাইসের তথ্য ক্লাউডে কপি করুন** বেছে নিলে এই browser-এর cache কপি হবে; **এখন নয়** বেছে নিলে cloud sync বন্ধ থাকবে এবং স্থানীয় data অক্ষত থাকবে।
+এই browser-এ local clinic data থাকলে এবং Supabase-এ এখনো data না থাকলে, App খোলার আগে সেটি cloud-এ কপি করার সম্মতি চাওয়া হবে। **এই ডিভাইসের তথ্য ক্লাউডে কপি করুন** বেছে নিলে এই browser-এর cache কপি হবে; **এখন নয়** বেছে নিলে cloud sync বন্ধ থাকবে এবং স্থানীয় data অক্ষত থাকবে।
 
-বাস্তব রোগীর তথ্য ব্যবহারের আগে Supabase project-এর access, backup/restore ব্যবস্থা এবং আপনার এলাকার প্রযোজ্য privacy requirements যাচাই করুন।
+Supabase Free Plan-এ scheduled database backup নেই; গুরুত্বপূর্ণ data-র আলাদা backup রাখুন।
