@@ -2,6 +2,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/tv1", "destination": "/tv.html?tv=1" },
+    { "source": "/tv2", "destination": "/tv.html?tv=2" },
+    { "source": "/tv3", "destination": "/tv.html?tv=3" },
+    { "source": "/tv4", "destination": "/tv.html?tv=4" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

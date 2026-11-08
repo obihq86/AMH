@@ -1041,7 +1041,7 @@ const resolveUrlSessionUser = () => {
     if (typeof window === 'undefined') return null;
     const params = new URLSearchParams(window.location.search);
     const u = (params.get('user') || '').toLowerCase();
-    const tv = params.get('tv');
+    const tv = params.get('tv') || window.location.pathname.match(/^\/tv([1-4])\/?$/i)?.[1];
     if (u === 'tv' || u === 'tv-01' || ['1', '2', '3', '4'].includes(tv)) return TV_SESSION_USER;
   } catch {}
   return null;
@@ -2429,7 +2429,8 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     try {
       // ?tv=1..4 থাকলে সেই বোর্ডই খুলবে (প্রতি টিভির স্থায়ী লিঙ্ক), না থাকলে শেষ ব্যবহৃত বোর্ড
       const p = new URLSearchParams(window.location.search);
-      const urlV = Number(p.get('tv'));
+      const pathVariant = window.location.pathname.match(/^\/tv([1-4])\/?$/i)?.[1];
+      const urlV = Number(p.get('tv') || pathVariant);
       if ([1, 2, 3, 4].includes(urlV)) return urlV;
       const v = Number(localStorage.getItem('amh_tv_variant'));
       if ([1, 2, 3, 4].includes(v)) return v;

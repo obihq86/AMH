@@ -25,14 +25,14 @@ Guest Mode আগের মতো সিরিয়ালের আবেদন �
 
 ## TV browser links
 
-The Vercel build includes the legacy-browser-compatible TV page at `/tv.html`. Use the same Vercel hostname with a board number for each screen:
+The Vercel build includes the legacy-browser-compatible TV page. Use these short links for each screen:
 
-- TV-1: `/tv.html?tv=1`
-- TV-2: `/tv.html?tv=2`
-- TV-3: `/tv.html?tv=3`
-- TV-4: `/tv.html?tv=4`
+- TV-1: `/tv1`
+- TV-2: `/tv2`
+- TV-3: `/tv3`
+- TV-4: `/tv4`
 
-These are four separate TV links on one Vercel domain. Separate domain names or subdomains require those domains to be added to the Vercel project and their DNS to point to Vercel.
+These are four separate TV links on the same Vercel domain. Separate domain names or subdomains require those domains to be added to the Vercel project and their DNS to point to Vercel.
 
 ## পুরোনো ডেটা
 
