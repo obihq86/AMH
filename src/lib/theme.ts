@@ -24,18 +24,18 @@ export const TRANSLATIONS = {
 };
 
 export const THEMES = [
-  { id: 'aurora-ui', name: 'Aurora UI (Northern Lights)' },
-  { id: 'gradient-mesh-ui', name: 'Gradient Mesh UI' },
-  { id: 'aurora-glassmorphism-ui', name: 'Aurora UI Gradient with Glassmorphism' },
-  { id: 'immersive-ui', name: 'Immersive UI (Deep Focus)' },
-  { id: 'organic-ui', name: 'Organic UI (Earthy Botanical)' },
-  { id: 'dental-mint', name: 'Dental Mint & Peach (Clinic UI)' },
-  { id: 'luxe-frosted-glass', name: 'Luxe Frosted Glass' },
-  { id: 'plain-green', name: 'Plain UI (Green)' },
-  { id: 'puffy-3d-clay', name: 'Puffy 3D Clay' },
-  { id: 'sooti-art-clay', name: 'Sooti Art Clay' },
-  { id: 'zomo-neo-cloud', name: 'Zomo Neo-Cloud' },
-  { id: 'dark-gold-luxe', name: 'Dark Gold Luxe (VIP)' },
-  { id: 'obsidian-neumorphic', name: 'Obsidian Neumorphic (Violet)' },
-  { id: 'neon-glass', name: 'Neon Glass Dashboard (Blue-Purple)' }
+  { id: 'aurora-ui', name: 'Aurora UI (Light)' },
+  { id: 'gradient-mesh-ui', name: 'Gradient Mesh UI (Light)' },
+  { id: 'aurora-glassmorphism-ui', name: 'Aurora UI Gradient with Glassmorphism (Light)' },
+  { id: 'immersive-ui', name: 'Immersive UI (Light)' },
+  { id: 'organic-ui', name: 'Organic UI (Light)' },
+  { id: 'dental-mint', name: 'Dental Mint & Peach (Light)' },
+  { id: 'luxe-frosted-glass', name: 'Luxe Frosted Glass (Light)' },
+  { id: 'plain-green', name: 'Plain UI (Light)' },
+  { id: 'puffy-3d-clay', name: 'Puffy 3D Clay (Light)' },
+  { id: 'sooti-art-clay', name: 'Sooti Art Clay (Light)' },
+  { id: 'zomo-neo-cloud', name: 'Zomo Neo-Cloud (Light)' },
+  { id: 'dark-gold-luxe', name: 'Dark Gold Luxe (Dark)' },
+  { id: 'obsidian-neumorphic', name: 'Obsidian Neumorphic (Dark)' },
+  { id: 'neon-glass', name: 'Neon Glass Dashboard (Dark)' }
 ].sort((a, b) => a.name.localeCompare(b.name));
