@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node tools/build-vercel.mjs",
     "preview": "vite preview",
     "stage": "node tools/publish-stage.mjs",
     "publish:live": "node tools/publish-live.mjs"
