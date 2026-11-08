@@ -12,7 +12,9 @@ OAuth client ID/
 *.snapshot-*
 *.undone-*
 .vscode/
-tools/
+tools/*
+!tools/build-vercel.mjs
+!tools/tv-compat.mjs
 *.log
 *.lnk
 *.zip
