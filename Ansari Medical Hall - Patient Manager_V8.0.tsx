@@ -1392,8 +1392,9 @@ const QueuePatientRow = React.memo(function QueuePatientRow({
                                 ? 'bg-indigo-200 text-indigo-900 border-indigo-500 ring-2 ring-indigo-400 shadow-inner'
                                 : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border-indigo-300 shadow-xs'
                             } cursor-pointer`}
-                            title={patient.inChamber ? 'চেম্বারে প্রবেশ করেছে — আবার চাপলে বের করে আনুন' : 'প্রবেশ — রোগী চেম্বারে প্রবেশ করেছে'}
-                            aria-label={patient.inChamber ? `${patient.name} কে প্রবেশ থেকে সরান` : `${patient.name} কে প্রবেশ চিহ্নিত করুন`}
+                            title={patient.inChamber ? 'চেম্বারে প্রবেশ করেছে — আবার চাপলে বের করে আনুন (Ctrl+F)' : 'প্রবেশ — রোগী চেম্বারে প্রবেশ করেছে (Ctrl+F)'}
+                            aria-label={patient.inChamber ? `${patient.name} কে প্রবেশ থেকে সরান (Ctrl+F)` : `${patient.name} কে প্রবেশ চিহ্নিত করুন (Ctrl+F)`}
+                            aria-keyshortcuts="Control+F"
                           >
                             <EnterIcon className="w-6 h-6" />
                   <span className="text-[9px] font-black leading-none mt-0">প্রবেশ</span>
@@ -1463,6 +1464,52 @@ const QueuePatientRow = React.memo(function QueuePatientRow({
 
 
 
+
+// ————— পপআপ/ড্রপডাউন মেনু ভিউপোর্টের ভিতরে রাখার হেল্পার —————
+// বাটনের অবস্থান মেপে মেনুকে স্ক্রিনের ভিতরে clamp করা হয় (মোবাইলে যেন স্ক্রিনের বাইরে না যায়)
+const amhClampMenuIntoViewport = (el, anchorEl) => {
+  if (!el || !anchorEl || typeof anchorEl.getBoundingClientRect !== 'function' || typeof window === 'undefined') return;
+  const rect = anchorEl.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const width = el.offsetWidth || parseFloat(el.style.width) || 200;
+  let left = rect.right - width;
+  if (left < 8) left = 8;
+  if (left + width > vw - 8) left = Math.max(8, vw - width - 8);
+  // transition/animation বন্ধ — না হলে inline top/left সেট করার পর CSS transition
+  // পুরোনো (top-full) অবস্থান থেকে অ্যানিমেট হয়ে আটকে থাকে, মেনু স্ক্রিনের বাইরে চলে যায়
+  el.style.transition = 'none';
+  el.style.animation = 'none';
+  el.style.transform = 'none';
+  el.style.position = 'fixed';
+  el.style.left = left + 'px';
+  el.style.right = 'auto';
+  el.style.margin = '0';
+  el.style.width = width + 'px';
+  el.style.maxHeight = Math.max(80, vh - 16) + 'px';
+  el.style.overflowY = 'auto';
+  const height = el.offsetHeight;
+  const belowSpace = vh - rect.bottom - 16;
+  const aboveSpace = rect.top - 16;
+  let top;
+  if (height <= belowSpace || belowSpace >= aboveSpace) {
+    top = rect.bottom + 8;
+    el.style.maxHeight = Math.max(80, vh - top - 8) + 'px';
+  } else {
+    // নিচে জায়গা নেই — বাটনের উপরে খুলবে
+    el.style.maxHeight = Math.max(80, aboveSpace) + 'px';
+    top = Math.max(8, rect.top - 8 - Math.min(height, aboveSpace));
+  }
+  el.style.top = Math.max(8, Math.min(top, vh - 16)) + 'px';
+};
+
+const AmhClampedMenu = ({ anchorEl, width, className, children }) => {
+  const ref = React.useRef(null);
+  React.useLayoutEffect(() => {
+    amhClampMenuIntoViewport(ref.current, anchorEl);
+  });
+  return <div ref={ref} className={className} style={{ width }}>{children}</div>;
+};
 
 // ————— Draw Annotation helpers —————
 const ANNOTATION_COLORS = [
@@ -3357,6 +3404,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [headerAskMenuOpen, setHeaderAskMenuOpen] = useState(false);
   const [tvMenuOpen, setTvMenuOpen] = useState(false);
+  const [tvMenuAnchor, setTvMenuAnchor] = useState(null);
   const [promptHistory, setPromptHistory] = useState(() => {
     try {
       const saved = localStorage.getItem('amh_select_ask_history');
@@ -3978,6 +4026,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const [quickSerialToast, setQuickSerialToast] = useState('');
   const [patientIdImportToast, setPatientIdImportToast] = useState('');
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const [editingPatientIdRecord, setEditingPatientIdRecord] = useState(null);
   const [editPidCode, setEditPidCode] = useState('');
   const [editPidName, setEditPidName] = useState('');
@@ -4092,9 +4141,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const [allPanelOpen, setAllPanelOpen] = useState(false);
   // কিউ ইনলাইন ভিউ-মোড: কোন তালিকা নিচের লিস্টে দেখানো হবে (pop-up ছাড়া)
   const [queueView, setQueueView] = useState('normal');
-  const [queueToolbarMinimized, setQueueToolbarMinimized] = useState(() => { try { return localStorage.getItem('amh_queue_toolbar_minimized') === '1'; } catch { return false; } });
   const [queueToolbarHidden, setQueueToolbarHidden] = useState(() => { try { return localStorage.getItem('amh_queue_toolbar_hidden') === '1'; } catch { return false; } });
-  useEffect(() => { try { localStorage.setItem('amh_queue_toolbar_minimized', queueToolbarMinimized ? '1' : '0'); } catch { /* ignore */ } }, [queueToolbarMinimized]);
   useEffect(() => { try { localStorage.setItem('amh_queue_toolbar_hidden', queueToolbarHidden ? '1' : '0'); } catch { /* ignore */ } }, [queueToolbarHidden]);
   const [queueDeleteTarget, setQueueDeleteTarget] = useState(null);
   // কিউ মাল্টি-মার্কিং: Ctrl+ক্লিক / দীর্ঘ-চাপে মার্ক করা রোগীর id সেট + বাল্ক-ডিলিটের id লিস্ট
@@ -7355,7 +7402,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         const prevTs = Number(p.updatedTimestamp || p.completedTimestamp || p.calledTimestamp || p.registeredTimestamp || 0);
         const nextTs = Math.max(baseStamp, prevTs + 1);
         logicalClockRef.current = Math.max(logicalClockRef.current, nextTs);
-        return { ...p, status: 'CALLED', calledTimestamp: nextTs, updatedTimestamp: nextTs };
+        return { ...p, status: 'CALLED', inChamber: false, calledTimestamp: nextTs, updatedTimestamp: nextTs };
       }
       return p;
     });
@@ -7382,11 +7429,11 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       const nextTs = Math.max(baseStamp, prevTs + 1);
       if (p.status === 'CALLED') {
         logicalClockRef.current = Math.max(logicalClockRef.current, nextTs);
-        return { ...p, status: 'COMPLETED', completedTimestamp: nextTs, updatedTimestamp: nextTs };
+        return { ...p, status: 'COMPLETED', inChamber: false, completedTimestamp: nextTs, updatedTimestamp: nextTs };
       }
       if (nextPatient && p.id === nextPatient.id) {
         logicalClockRef.current = Math.max(logicalClockRef.current, nextTs);
-        return { ...p, status: 'CALLED', calledTimestamp: nextTs, updatedTimestamp: nextTs };
+        return { ...p, status: 'CALLED', inChamber: false, calledTimestamp: nextTs, updatedTimestamp: nextTs };
       }
       return p;
     });
@@ -7403,7 +7450,8 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         const prevTs = Number(p.updatedTimestamp || p.completedTimestamp || p.calledTimestamp || p.registeredTimestamp || 0);
         const nextTs = Math.max(baseStamp, prevTs + 1);
         logicalClockRef.current = Math.max(logicalClockRef.current, nextTs);
-        return { ...p, status: newStatus, updatedTimestamp: nextTs };
+        // নিয়ম: অন্য স্ট্যাটাস আইকনে ক্লিক করলে "প্রবেশ" চিহ্ন উঠে যায়
+        return { ...p, status: newStatus, inChamber: false, updatedTimestamp: nextTs };
       }
       return p;
     });
@@ -7451,7 +7499,8 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         const prevTs = Number(p.updatedTimestamp || p.completedTimestamp || p.calledTimestamp || p.registeredTimestamp || 0);
         const nextTs = Math.max(baseStamp, prevTs + (++bump));
         logicalClockRef.current = Math.max(logicalClockRef.current, nextTs);
-        return { ...p, status: newStatus, updatedTimestamp: nextTs };
+        // নিয়ম: অন্য স্ট্যাটাস আইকনে ক্লিক করলে "প্রবেশ" চিহ্ন উঠে যায়
+        return { ...p, status: newStatus, inChamber: false, updatedTimestamp: nextTs };
       }
       return p;
     });
@@ -8304,7 +8353,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
       const shortcut = event.key === ' ' ? 'space' : event.key.toLowerCase();
     if (shortcut === 'z') { event.preventDefault(); undoLastQueueAction(); return; }
-      if (!['e', 'm', 'd', 'a', 'k', 'r', 'space'].includes(shortcut)) return;
+      if (!['e', 'm', 'd', 'a', 'k', 'r', 'f', 'space'].includes(shortcut)) return;
 
       const patient = selectedQueuePatient || activeQueuePatients[0];
       if (!patient) return;
@@ -8332,6 +8381,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
           break;
         case 'r':
           if (patient.status !== 'WAITING') handleUpdateStatus(patient.id, 'WAITING');
+          break;
+        case 'f':
+          toggleInChamber(patient.id);
           break;
         default:
           break;
@@ -8403,6 +8455,8 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       phoneNumber: editQueuePhone.trim(),
       symptoms: editQueueSymptoms.trim(),
       status: editQueueStatus,
+      // এডিট ফর্মে স্ট্যাটাস বদলালে "প্রবেশ" চিহ্ন উঠে যায়
+      inChamber: editQueueStatus !== editingQueuePatient.status ? false : editingQueuePatient.inChamber,
       updatedTimestamp: getNextLogicalTime()
     };
 
@@ -8474,6 +8528,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const patientIdFileInputRef = useRef(null);
   const reportsFileInputRef = useRef(null);
   const [reportsExportMenuOpen, setReportsExportMenuOpen] = useState(false);
+  const [reportsExportMenuAnchor, setReportsExportMenuAnchor] = useState(null);
 
   const handleOpenEditPatientId = (rec) => {
     const adjAge = getRealtimeAdjustedAge(rec);
@@ -9430,6 +9485,47 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     setTimeout(() => setSyncToast(''), 4000);
   };
 
+  // ইমপোর্ট মার্জ নিয়ম: নাম + বয়স + সিরিয়াল এন্ট্রির সময় — এই ৩টি মিললে পুরাতন রেকর্ড ধরা হয় (স্কিপ)।
+  // ইউনিক আইডি (patientCode) দিয়ে মেলানো হয় শুধু তখনই, যখন রোগীর নামের সাথে মোবাইল নম্বর যুক্ত থাকে।
+  const amhImportNormText = (v) => String(v === undefined || v === null ? '' : v).trim().toLowerCase();
+  const amhImportSameAge = (a, b) => {
+    const ay = Number(a?.ageYears || 0), by = Number(b?.ageYears || 0);
+    const am = Number(a?.ageMonths || 0), bm = Number(b?.ageMonths || 0);
+    const ad = Number(a?.ageDays || 0), bd = Number(b?.ageDays || 0);
+    if (ay || am || ad || by || bm || bd) return ay === by && am === bm && ad === bd;
+    return Math.abs(Number(a?.totalAge || 0) - Number(b?.totalAge || 0)) < 0.01;
+  };
+  const amhImportEntryExists = (list, incoming) => {
+    const inName = amhImportNormText(incoming?.name);
+    const inTime = amhImportNormText(incoming?.registeredAt);
+    if (!inName) return false;
+    return (list || []).some(p =>
+      amhImportNormText(p?.name) === inName &&
+      amhImportSameAge(p, incoming) &&
+      amhImportNormText(p?.registeredAt) === inTime
+    );
+  };
+  const amhImportDirExists = (list, incoming) => {
+    const inPhone = String(incoming?.phoneNumber || '').replace(/\D/g, '');
+    const inCode = amhImportNormText(incoming?.patientCode);
+    if (inPhone && inCode) {
+      // মোবাইল নম্বর যুক্ত থাকলে ইউনিক আইডির লজিক প্রযোজ্য
+      return (list || []).some(p =>
+        amhImportNormText(p?.patientCode) === inCode &&
+        String(p?.phoneNumber || '').replace(/\D/g, '') === inPhone
+      );
+    }
+    // মোবাইল নম্বর না থাকলে: নাম + বয়স + নিবন্ধনের তারিখ/সময় মিলিয়ে দেখা হয়
+    const inName = amhImportNormText(incoming?.name);
+    if (!inName) return false;
+    const inWhen = amhImportNormText(incoming?.createdDate || incoming?.registeredAt);
+    return (list || []).some(p =>
+      amhImportNormText(p?.name) === inName &&
+      amhImportSameAge(p, incoming) &&
+      amhImportNormText(p?.createdDate || p?.registeredAt) === inWhen
+    );
+  };
+
   const handleProcessReportsImportFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -9444,24 +9540,37 @@ export default function App({ cloudSyncEnabled = true } = {}) {
           const parsed = JSON.parse(text);
           let updatedPatients = { ...patientsByDate };
           let updatedDir = [...patientIdDirectory];
+          let jsonAdded = 0;
+          let jsonSkipped = 0;
 
           if (parsed.patientsByDate && typeof parsed.patientsByDate === 'object') {
             Object.keys(parsed.patientsByDate).forEach(d => {
               const incomingList = parsed.patientsByDate[d] || [];
-              const existingList = updatedPatients[d] || [];
-              const mergedMap = new Map();
-              existingList.forEach(p => mergedMap.set(p.id, p));
-              incomingList.forEach(p => mergedMap.set(p.id, { ...(mergedMap.get(p.id) || {}), ...p }));
-              updatedPatients[d] = Array.from(mergedMap.values());
+              const existingList = [...(updatedPatients[d] || [])];
+              incomingList.forEach(p => {
+                if (!p || !p.name) return;
+                if (amhImportEntryExists(existingList, p)) {
+                  jsonSkipped++;
+                  return;
+                }
+                existingList.push(p);
+                jsonAdded++;
+              });
+              updatedPatients[d] = existingList;
             });
             setPatientsByDate(updatedPatients);
           }
 
           if (Array.isArray(parsed.patientIdDirectory)) {
-            const dirMap = new Map();
-            updatedDir.forEach(p => dirMap.set(p.patientCode || p.id, p));
-            parsed.patientIdDirectory.forEach(p => dirMap.set(p.patientCode || p.id, { ...(dirMap.get(p.patientCode || p.id) || {}), ...p }));
-            updatedDir = Array.from(dirMap.values());
+            parsed.patientIdDirectory.forEach(p => {
+              if (!p || !p.name) return;
+              if (amhImportDirExists(updatedDir, p)) {
+                jsonSkipped++;
+                return;
+              }
+              updatedDir.push(p);
+              jsonAdded++;
+            });
             setPatientIdDirectory(updatedDir);
           }
 
@@ -9478,7 +9587,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
             deletedDates
           );
 
-          setSyncToast('✓ সফলভাবে সম্পূর্ণ ডাটাবেজ ব্যাকআপ ইমপোর্ট ও সিঙ্ক হয়েছে!');
+          setSyncToast(`✓ ইমপোর্ট সম্পন্ন — ${toBengaliDigits(jsonAdded)}টি নতুন তথ্য যোগ হয়েছে, ${toBengaliDigits(jsonSkipped)}টি পুরাতন তথ্য স্কিপ হয়েছে।`);
           setTimeout(() => setSyncToast(''), 4000);
           return;
         }
@@ -9492,6 +9601,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
 
         if (headerLine.includes('টোকেন') || headerLine.includes('serial') || headerLine.includes('status')) {
           let updatedMap = { ...patientsByDate };
+          let skippedCount = 0;
           dataRows.forEach((row, idx) => {
             const cols = row.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
             if (!cols[1]) return;
@@ -9527,6 +9637,10 @@ export default function App({ cloudSyncEnabled = true } = {}) {
             };
 
             const existingList = updatedMap[targetDate] || [];
+            if (amhImportEntryExists(existingList, newPatient)) {
+              skippedCount++;
+              return;
+            }
             updatedMap[targetDate] = [...existingList, newPatient];
             importedCount++;
           });
@@ -9545,7 +9659,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
             deletedDates
           );
 
-          setSyncToast(`✓ সফলভাবে ${toBengaliDigits(importedCount)}টি রোগীর সিরিয়াল এন্ট্রি ইমপোর্ট হয়েছে!`);
+          setSyncToast(`✓ ইমপোর্ট সম্পন্ন — ${toBengaliDigits(importedCount)}টি নতুন রোগীর সিরিয়াল যোগ হয়েছে, ${toBengaliDigits(skippedCount)}টি পুরাতন এন্ট্রি স্কিপ হয়েছে।`);
           setTimeout(() => setSyncToast(''), 4000);
         } else {
           handleProcessImportedFile(e);
@@ -9718,26 +9832,21 @@ export default function App({ cloudSyncEnabled = true } = {}) {
           }).filter(p => p.name || p.phoneNumber);
         }
 
-        const existingMap = new Map();
-        patientIdDirectory.forEach(rec => {
-          if (rec.patientCode) existingMap.set(rec.patientCode, rec);
-        });
-
+        let updatedDirList = [...patientIdDirectory];
         let newCount = 0;
-        let updateCount = 0;
+        let skippedCount = 0;
 
         parsedRecords.forEach(rec => {
-          const code = rec.patientCode;
-          if (code && existingMap.has(code)) {
-            existingMap.set(code, { ...existingMap.get(code), ...rec });
-            updateCount++;
-          } else if (code) {
-            existingMap.set(code, rec);
-            newCount++;
+          if (!rec || (!rec.name && !rec.phoneNumber)) return;
+          if (amhImportDirExists(updatedDirList, rec)) {
+            skippedCount++;
+            return;
           }
+          updatedDirList.push(rec);
+          newCount++;
         });
 
-        const updatedDir = Array.from(existingMap.values());
+        const updatedDir = updatedDirList;
         setPatientIdDirectory(updatedDir);
 
         broadcastFullState(
@@ -9752,7 +9861,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
           patientIdPrefix
         );
 
-        setPatientIdImportToast(`✓ সফলভাবে ${toBengaliDigits(newCount)}টি নতুন ও ${toBengaliDigits(updateCount)}টি পূর্বের Patient ID সিঙ্ক হয়েছে!`);
+        setPatientIdImportToast(`✓ ইমপোর্ট সম্পন্ন — ${toBengaliDigits(newCount)}টি নতুন Patient ID যোগ হয়েছে, ${toBengaliDigits(skippedCount)}টি পুরাতন রেকর্ড স্কিপ হয়েছে।`);
         setTimeout(() => setPatientIdImportToast(''), 4500);
       } catch (err) {
         setPatientIdImportToast(`⚠️ ফাইল ইমপোর্টে ত্রুটি: ${err.message}`);
@@ -10519,7 +10628,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
               <div className="relative shrink-0" data-select-ask-ignore="true">
                 <button
                   type="button"
-                  onClick={() => setTvMenuOpen(o => !o)}
+                  onClick={(e) => { setTvMenuAnchor(e.currentTarget); setTvMenuOpen(o => !o); }}
                   aria-expanded={tvMenuOpen}
                   aria-label="TV বোর্ড নির্বাচন করুন"
                   className={`flex items-center gap-1 px-2 py-1.5 rounded-xl border text-[11px] font-bold transition cursor-pointer ${
@@ -10534,10 +10643,10 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                   <ChevronDown className={`icon-outline-black w-3 h-3 transition-transform duration-200 ${tvMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
-                {tvMenuOpen && (
+                {tvMenuOpen && typeof document !== 'undefined' && createPortal(
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setTvMenuOpen(false)} aria-hidden="true" />
-                    <div className="absolute right-0 top-full mt-2 z-50 w-64 rounded-2xl border border-white/25 bg-slate-900/95 backdrop-blur-xl shadow-2xl p-1.5 text-white animate-fadeIn">
+                    <AmhClampedMenu anchorEl={tvMenuAnchor} width={256} className="absolute right-0 top-full mt-2 z-50 w-64 rounded-2xl border border-white/25 bg-slate-900/95 backdrop-blur-xl shadow-2xl p-1.5 text-white animate-fadeIn">
                       <div className="px-2 py-1 text-[10px] font-black tracking-wide text-indigo-300">TV বোর্ড নির্বাচন</div>
                       {[1, 2, 3, 4].filter((n) => tvBoardsConfig[n]?.enabled).length === 0 ? (
                         <div className="px-2.5 py-3 text-[11px] text-slate-300">কোনো বোর্ড চালু নেই — অ্যাডমিন প্যানেল থেকে চালু করুন।</div>
@@ -10565,8 +10674,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                           );
                         })
                       )}
-                    </div>
-                  </>
+                    </AmhClampedMenu>
+                  </>,
+                  document.body
                 )}
               </div>
             )}
@@ -10607,6 +10717,19 @@ export default function App({ cloudSyncEnabled = true } = {}) {
             >
               <LogOut className="icon-outline-black w-4 h-4 sm:w-3.5 sm:h-3.5" />
             </button>
+
+            {activeTab === 'queue' && !currentUser?.isGuest && (
+              <button
+                type="button"
+                onClick={() => setQueueToolbarHidden((h) => !h)}
+                className="w-11 h-11 rounded-xl border border-transparent transition cursor-pointer flex items-center justify-center shrink-0 hover:bg-white/10 text-white"
+                title={queueToolbarHidden ? 'কিউ টুলবার দেখান' : 'কিউ টুলবার লুকান'}
+                aria-label={queueToolbarHidden ? 'কিউ টুলবার দেখান' : 'কিউ টুলবার লুকান'}
+                aria-pressed={queueToolbarHidden}
+              >
+                {queueToolbarHidden ? <Eye className="icon-outline-black w-5 h-5 sm:w-4 sm:h-4" /> : <EyeOff className="icon-outline-black w-5 h-5 sm:w-4 sm:h-4" />}
+              </button>
+            )}
 
             <button
               type="button"
@@ -11856,32 +11979,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
             )}
 
             {/* কিউ ভিউ-সুইচার: নিচের তালিকায় কোন লিস্ট দেখানো হবে (pop-up ছাড়া) */}
-            {!currentUser?.isGuest && (queueToolbarHidden ? (
-              <div className="flex items-center justify-end gap-1.5 px-0.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setQueueToolbarHidden(false)}
-                  aria-label="টুলবার দেখান (পূর্বাবস্থায় ফেরান)"
-                  title="টুলবার দেখান"
-                  className="flex items-center justify-center w-[40px] h-[42px] rounded-lg border transition cursor-pointer shadow-xs bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
+            {!currentUser?.isGuest && !queueToolbarHidden && (
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 px-0.5">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setQueueToolbarMinimized((m) => !m)}
-                  aria-label={queueToolbarMinimized ? 'টুলবার বড় করুন' : 'টুলবার ছোট করুন'}
-                  title={queueToolbarMinimized ? 'টুলবার বড় করুন' : 'টুলবার ছোট করুন'}
-                  aria-expanded={!queueToolbarMinimized}
-                  className="flex items-center justify-center w-[40px] h-[42px] rounded-lg border transition cursor-pointer shadow-xs bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                >
-                  {queueToolbarMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-                {!queueToolbarMinimized && (<>
               <button
                 type="button"
                 onClick={() => setQueueSelectedDate((d) => shiftDateKey(d, -1))}
@@ -11919,10 +12019,8 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                 <Calendar className="w-4 h-4" />
                 <span className="text-[9px] font-black leading-none mt-0">আজ</span>
               </button>
-                </>)}
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap sm:justify-end">
-                {!queueToolbarMinimized && (<>
               <button
                 type="button"
                 onClick={() => setQueueView('normal')}
@@ -11993,19 +12091,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                   <span className="text-[9px] font-black leading-none mt-0">সম্পন্ন</span>
                   <span className="absolute -top-2 -right-1.5 flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-slate-800 text-white text-[16px] font-black leading-none ring-2 ring-white/80 shadow-sm">{toBengaliDigits(completedQueuePatients.length)}</span>
                 </button>
-                </>)}
-                <button
-                  type="button"
-                  onClick={() => setQueueToolbarHidden(true)}
-                  aria-label="টুলবার লুকান"
-                  title="টুলবার লুকান"
-                  className="flex items-center justify-center w-[40px] h-[42px] rounded-lg border transition cursor-pointer shadow-xs bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                >
-                  <EyeOff className="w-4 h-4" />
-                </button>
                 </div>
               </div>
-            ))}
+            )}
 
             {/* রোগীর তালিকা — বেছে নেওয়া ভিউ অনুযায়ী ইনলাইন */}
             {(() => {
@@ -12398,7 +12486,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                       <div className="relative">
                         <button
                           type="button"
-                          onClick={() => setExportMenuOpen(prev => !prev)}
+                          onClick={(e) => { setExportMenuAnchor(e.currentTarget); setExportMenuOpen(prev => !prev); }}
                           className="p-2 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 transition flex items-center justify-center gap-0.5 cursor-pointer shadow-xs shrink-0"
                           title="এক্সপোর্ট"
                         >
@@ -12406,10 +12494,10 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                           <ChevronDown className="w-2.5 h-2.5 opacity-70" />
                         </button>
 
-                        {exportMenuOpen && (
+                        {exportMenuOpen && typeof document !== 'undefined' && createPortal(
                           <>
                             <div className="fixed inset-0 z-30" onClick={() => setExportMenuOpen(false)} />
-                            <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 z-40 space-y-1 text-xs">
+                            <AmhClampedMenu anchorEl={exportMenuAnchor} width={208} className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 z-40 space-y-1 text-xs">
                             <button
                               type="button"
                               onClick={() => {
@@ -12432,8 +12520,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                               <Download className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                               <span>JSON ব্যাকআপ (.json)</span>
                             </button>
-                          </div>
-                          </>
+                          </AmhClampedMenu>
+                          </>,
+                          document.body
                         )}
                       </div>
                     </div>
@@ -13131,7 +13220,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                   <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setReportsExportMenuOpen(prev => !prev)}
+                      onClick={(e) => { setReportsExportMenuAnchor(e.currentTarget); setReportsExportMenuOpen(prev => !prev); }}
                       className="amh-gold-marked p-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white transition cursor-pointer shadow-xs flex items-center justify-center"
                       title="রোগীর সিরিয়ালের তালিকা ও সকল এন্ট্রি এক্সপোর্ট করুন"
                       aria-label="এক্সপোর্ট"
@@ -13140,10 +13229,10 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                     </button>
 
                     {/* এক্সপোর্ট মেনু ড্রপডাউন */}
-                    {reportsExportMenuOpen && (
+                    {reportsExportMenuOpen && typeof document !== 'undefined' && createPortal(
                       <>
                         <div className="fixed inset-0 z-30" onClick={() => setReportsExportMenuOpen(false)} />
-                        <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-72 bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700 p-2.5 z-40 space-y-1 animate-fadeIn text-xs">
+                        <AmhClampedMenu anchorEl={reportsExportMenuAnchor} width={288} className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-72 bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700 p-2.5 z-40 space-y-1 animate-fadeIn text-xs">
                           <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 border-b border-slate-800">
                             এক্সপোর্ট অপশন নির্বাচন করুন
                           </div>
@@ -13207,8 +13296,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                               <div className="text-[10px] font-normal text-slate-400">সিরিয়াল ও Patient ID সহ ফুল ডাটা ব্যাকআপ</div>
                             </div>
                           </button>
-                        </div>
-                      </>
+                        </AmhClampedMenu>
+                      </>,
+                      document.body
                     )}
                   </div>
                 </div>
