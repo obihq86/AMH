@@ -4145,6 +4145,75 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const [queueToolbarHidden, setQueueToolbarHidden] = useState(() => { try { return localStorage.getItem('amh_queue_toolbar_hidden') === '1'; } catch { return false; } });
   const [liveQueuePipOpen, setLiveQueuePipOpen] = useState(false);
   const [liveQueuePipToast, setLiveQueuePipToast] = useState('');
+
+  const handleToggleLiveQueuePip = async () => {
+    if (liveQueuePipOpen) {
+      if (typeof document !== 'undefined' && document.exitPictureInPicture) {
+        try { await document.exitPictureInPicture(); } catch { /* ignore */ }
+      }
+      setLiveQueuePipOpen(false);
+      return;
+    }
+    if (typeof window !== 'undefined' && window.documentPictureInPicture && window.documentPictureInPicture.requestWindow) {
+      try {
+        const pipWindow = await window.documentPictureInPicture.requestWindow({ width: 400, height: 600 });
+        setLiveQueuePipOpen(true);
+        pipWindow.document.body.style.margin = '0';
+        pipWindow.document.body.style.fontFamily = '"' + '"Hind Siliguri", system-ui, sans-serif' + '"';
+        pipWindow.document.body.style.background = '#ffffff';
+        const style = pipWindow.document.createElement('style');
+        style.textContent = `
+          @font-face { font-family: 'Hind Siliguri'; src: url('/fonts/HindSiliguri-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+          @font-face { font-family: 'Hind Siliguri'; src: url('/fonts/HindSiliguri-SemiBold.ttf') format('truetype'); font-weight: 600; font-display: swap; }
+          @font-face { font-family: 'Hind Siliguri'; src: url('/fonts/HindSiliguri-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+          body { margin: 0; font-family: 'Hind Siliguri', system-ui, sans-serif; background: #f8fafc; }
+          .pip-header { background: #0f172a; color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 10px; border-radius: 12px 12px 0 0; }
+          .pip-title { font-weight: 700; font-size: 14px; }
+          .pip-close { background: rgba(255,255,255,0.1); border: none; color: #fff; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-left: auto; }
+          .pip-close:hover { background: rgba(255,255,255,0.2); }
+          .pip-content { padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 80px); overflow-y: auto; }
+          .pip-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; }
+          .pip-token { font-weight: 700; font-size: 18px; color: #0f172a; }
+          .pip-name { font-size: 14px; color: #334155; flex: 1; margin: 0 12px; }
+          .pip-status { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+          .status-waiting { background: #fef3c7; color: #92400e; }
+          .status-called { background: #dbeafe; color: #1e40af; }
+          .status-in-chamber { background: #dcfce7; color: #166534; }
+          .status-completed { background: #e2e8f0; color: #475569; }
+          .pip-empty { text-align: center; padding: 24px; color: #64748b; }
+        `;
+        pipWindow.document.head.appendChild(style);
+        const container = pipWindow.document.createElement('div');
+        container.className = 'pip-content';
+        const header = pipWindow.document.createElement('div');
+        header.className = 'pip-header';
+        const title = pipWindow.document.createElement('div');
+        title.className = 'pip-title';
+        title.textContent = 'লাইভ কিউ — পপ-আউট';
+        const closeBtn = pipWindow.document.createElement('button');
+        closeBtn.className = 'pip-close';
+        closeBtn.innerHTML = '✕';
+        closeBtn.onclick = () => { pipWindow.close(); setLiveQueuePipOpen(false); };
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+        container.appendChild(header);
+        const empty = pipWindow.document.createElement('div');
+        empty.className = 'pip-empty';
+        empty.textContent = 'কিউ তালিকা প্রদর্শিত হবে';
+        container.appendChild(empty);
+        pipWindow.document.body.appendChild(container);
+        pipWindow.addEventListener('pagehide', () => { setLiveQueuePipOpen(false); });
+        setLiveQueuePipToast('পিপ-ইন-পিপ উইন্ডো খোলা হয়েছে');
+        setTimeout(() => setLiveQueuePipToast(''), 3000);
+      } catch (err) {
+        setLiveQueuePipToast('এই ব্রাউজারে পিপ-ইন-পিপ সাপোর্ট নেই');
+        setTimeout(() => setLiveQueuePipToast(''), 3000);
+      }
+    } else {
+      setLiveQueuePipToast('এই ব্রাউজারে পিপ-ইন-পিপ সাপোর্ট নেই');
+      setTimeout(() => setLiveQueuePipToast(''), 3000);
+    }
+  };
   useEffect(() => { try { localStorage.setItem('amh_queue_toolbar_hidden', queueToolbarHidden ? '1' : '0'); } catch { /* ignore */ } }, [queueToolbarHidden]);
   const [queueDeleteTarget, setQueueDeleteTarget] = useState(null);
   // কিউ মাল্টি-মার্কিং: Ctrl+ক্লিক / দীর্ঘ-চাপে মার্ক করা রোগীর id সেট + বাল্ক-ডিলিটের id লিস্ট
