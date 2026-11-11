@@ -65,6 +65,7 @@ import {
   Undo2,
   X,
   Image as ImageIcon,
+   PictureInPicture,
   Loader2,
   ScanLine,
   Contrast,
@@ -4142,6 +4143,8 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   // কিউ ইনলাইন ভিউ-মোড: কোন তালিকা নিচের লিস্টে দেখানো হবে (pop-up ছাড়া)
   const [queueView, setQueueView] = useState('normal');
   const [queueToolbarHidden, setQueueToolbarHidden] = useState(() => { try { return localStorage.getItem('amh_queue_toolbar_hidden') === '1'; } catch { return false; } });
+  const [liveQueuePipOpen, setLiveQueuePipOpen] = useState(false);
+  const [liveQueuePipToast, setLiveQueuePipToast] = useState('');
   useEffect(() => { try { localStorage.setItem('amh_queue_toolbar_hidden', queueToolbarHidden ? '1' : '0'); } catch { /* ignore */ } }, [queueToolbarHidden]);
   const [queueDeleteTarget, setQueueDeleteTarget] = useState(null);
   // কিউ মাল্টি-মার্কিং: Ctrl+ক্লিক / দীর্ঘ-চাপে মার্ক করা রোগীর id সেট + বাল্ক-ডিলিটের id লিস্ট
