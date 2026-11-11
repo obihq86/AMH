@@ -66,6 +66,7 @@ import {
   X,
   Image as ImageIcon,
    PictureInPicture,
+   PictureInPicture,
   Loader2,
   ScanLine,
   Contrast,
