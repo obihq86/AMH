@@ -3033,7 +3033,6 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       setTimeout(go, 1200);
     } catch {}
   };
-  // নতুন ডাক কণ্ঠে (TTS) পড়ে শোনানো — বাংলা ভয়েস থাকলে সেটি, না হলে ডিফল্ট
   const speakTvCall = (patient) => {
     if (patient?.name) {
       callPatientByName(patient.name);
@@ -7453,17 +7452,79 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         const nextTs = Math.max(baseStamp, prevTs + 1);
         logicalClockRef.current = Math.max(logicalClockRef.current, nextTs);
 
-        // যদি আগে প্রবেশ করা না থাকে এবং এখন প্রবেশ করানো হয় (toggle on), তবে ভয়েস কল হবে
-        if (!p.inChamber) {
-          callPatientByName(p.name);
+        const inChamber = !p.inChamber;
+        if (inChamber) {
+          tvLastCallKeyRef.current = `${p.id}|${nextTs}`;
         }
-
-        return { ...p, inChamber: !p.inChamber, updatedTimestamp: nextTs };
+        return {
+          ...p,
+          inChamber,
+          ...(inChamber ? { calledAt: Date.now() } : {}),
+          updatedTimestamp: nextTs
+        };
       }
       return p;
     });
     updateDatePatientsList(queueSelectedDate, updated);
   };
+
+  const tvPatientVoiceCallKeysRef = useRef(new Set());
+  useEffect(() => {
+    if (!isTvScreenModeActive) return;
+
+    const patients = patientsByDate[queueSelectedDate] || [];
+    patients.forEach((patient) => {
+      if (!patient.inChamber || patient.calledAt == null) return;
+
+      const callKey = `${patient.id}|${patient.calledAt}`;
+      if (tvPatientVoiceCallKeysRef.current.has(callKey)) return;
+
+      tvPatientVoiceCallKeysRef.current.add(callKey);
+      callPatientByName(patient.name);
+    });
+  }, [callPatientByName, isTvScreenModeActive, patientsByDate, queueSelectedDate]);
+
+  useEffect(() => {
+    if (!isTvScreenModeActive || typeof document === 'undefined') return undefined;
+
+    let unlockAttempted = false;
+    const unlockTvAudio = () => {
+      if (unlockAttempted) return;
+      unlockAttempted = true;
+      document.removeEventListener('click', unlockTvAudio);
+      document.removeEventListener('touchstart', unlockTvAudio);
+
+      const audio = new Audio('/sounds/chime.mp3');
+      audio.preload = 'auto';
+      audio.volume = 0;
+      const finishUnlock = () => {
+        audio.removeEventListener('ended', finishUnlock);
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = 1;
+      };
+      audio.addEventListener('ended', finishUnlock);
+      try {
+        const playback = audio.play();
+        if (playback && typeof playback.then === 'function') {
+          playback.then(finishUnlock).catch((error) => {
+            audio.removeEventListener('ended', finishUnlock);
+            console.warn('TV audio unlock failed:', error);
+          });
+        }
+      } catch (error) {
+        audio.removeEventListener('ended', finishUnlock);
+        console.warn('TV audio unlock failed:', error);
+      }
+    };
+
+    document.addEventListener('click', unlockTvAudio);
+    document.addEventListener('touchstart', unlockTvAudio, { passive: true });
+    return () => {
+      document.removeEventListener('click', unlockTvAudio);
+      document.removeEventListener('touchstart', unlockTvAudio);
+    };
+  }, [isTvScreenModeActive]);
 
   // ---- কিউ মাল্টি-মার্কিং ----
   const toggleMarkQueuePatient = useCallback((id) => {
@@ -7929,17 +7990,16 @@ export default function App({ cloudSyncEnabled = true } = {}) {
 
   // নতুন ডাকে বিপ ও/অথবা কণ্ঠ ঘোষণা (সেটিংসে চালু থাকলে)
   useEffect(() => {
-    if ((!tvSoundEnabled && !tvVoice.enabled) || !isAuthenticated) return;
-    if (activeTab !== 'tv' && !(currentUser?.isTvMode || currentUser?.role === 'tv')) return;
+    if ((!tvSoundEnabled && !tvVoice.enabled) || !isTvScreenModeActive) return;
     const top = tvCalledPatientsSorted?.[0];
     const key = top ? `${top.id}|${top.updatedTimestamp || top.calledAt || ''}` : '';
     if (tvLastCallKeyRef.current === null) { tvLastCallKeyRef.current = key; return; }
     if (key && key !== tvLastCallKeyRef.current) {
       if (tvSoundEnabled) playTvCallBeep();
-      if (tvVoice.enabled) speakTvCall(top);
+      if (tvVoice.enabled && !top?.inChamber) speakTvCall(top);
     }
     tvLastCallKeyRef.current = key;
-  }, [tvSoundEnabled, tvVoice, isAuthenticated, activeTab, currentUser, tvCalledPatientsSorted]);
+  }, [tvSoundEnabled, tvVoice, isTvScreenModeActive, tvCalledPatientsSorted]);
 
   const tvAbsentPatients = useMemo(() => {
     const list = patientsByDate[queueSelectedDate || TODAY_KEY] || [];
