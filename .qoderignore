@@ -1,0 +1,33 @@
+﻿node_modules/
+dist/
+dist-tv/
+dist-tv-out/
+.vercel/
+.git/
+package-lock.json
+.env
+.env.*
+!.env.example
+OAuth client ID/
+.preview-tunnel.json
+.npmrc
+*.bak*
+*.snapshot-*
+*.undone-*
+.vscode/
+!tools/
+tools/*
+!tools/generate-clinic-secrets.mjs
+*.log
+*.lnk
+*.zip
+*.tsx.guestapp-feature
+*.tsx.theme-applied-snapshot-*
+preview-dev.log
+preview-live-proxy.mjs
+preview-tunnel-server.mjs
+tmp-shot.mjs
+- Copy*.tsx
+*.docx
+*.xlsx
+amh-*.png

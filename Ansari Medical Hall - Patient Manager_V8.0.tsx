@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { QueueSpotlightCard, SpotlightCard } from './src/components/SpotlightCard';
+import { usePatientVoiceCall } from './src/hooks/usePatientVoiceCall';
 import { THEMES, TRANSLATIONS } from './src/lib/theme';
 import { formatDateToDDMMYYYY, toBengaliDigits, formatBengaliFullDate, formatBengaliHeaderDate } from './src/lib/format';
 import { readClinicSnapshot, readClinicState, writeClinicState } from './src/lib/clinicApi';
@@ -2292,6 +2293,7 @@ function generateCardCanvas(patient, clinicName, doctorTitle, ageText) {
 }
 
 export default function App({ cloudSyncEnabled = true } = {}) {
+  const { callPatientByName } = usePatientVoiceCall();
   const t = TRANSLATIONS.bn;
 
   const [activeTheme, setActiveTheme] = useState(() => {
@@ -3001,24 +3003,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const tvLastCallKeyRef = useRef(null);
   const playTvCallBeep = () => {
     try {
-      const AC = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
-      if (!AC) return;
-      if (!tvAudioCtxRef.current) tvAudioCtxRef.current = new AC();
-      const ctx = tvAudioCtxRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
-      const vol = Math.min(1, Math.max(0, tvBeep.volume ?? 0.25));
-      const tones = tvBeep.type === 'chime' ? [523.25, 659.25, 783.99] : [880, 1320];
-      const repeat = clampCount(tvBeep.repeat, 1, 3);
-      for (let r = 0; r < repeat; r++) {
-        const base = ctx.currentTime + r * (tones.length * 0.16 + 0.12);
-        tones.forEach((freq, i) => {
-          const osc = ctx.createOscillator(); const gain = ctx.createGain();
-          osc.type = 'sine'; osc.frequency.value = freq;
-          const st = base + i * 0.16;
-          gain.gain.setValueAtTime(0.0001, st); gain.gain.exponentialRampToValueAtTime(Math.max(0.001, vol), st + 0.02); gain.gain.exponentialRampToValueAtTime(0.0001, st + 0.16);
-          osc.connect(gain).connect(ctx.destination); osc.start(st); osc.stop(st + 0.18);
-        });
-      }
+      const audio = new Audio('/sounds/chime.mp3');
+      audio.volume = Math.min(1, Math.max(0, tvBeep?.volume ?? 0.8));
+      audio.play().catch(() => {});
     } catch {}
   };
   // ব্রাউজারের ভয়েস-তালিকা অ্যাসিঙ্কভাবে লোড হয়; খালি তালিকায় speak() করলে Chrome উক্তি গ্রহণ করলেও
@@ -3048,14 +3035,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   };
   // নতুন ডাক কণ্ঠে (TTS) পড়ে শোনানো — বাংলা ভয়েস থাকলে সেটি, না হলে ডিফল্ট
   const speakTvCall = (patient) => {
-    try {
-      if (typeof window === 'undefined' || !window.speechSynthesis || !patient) return;
-      const token = toLatinDigits(queueTokenInfo.tokenLabelById.get(patient.id) || `${patient.serialNumber}`);
-      const text = `টোকেন ${token}${patient.name ? `, ${patient.name}` : ''}`;
-      window.speechSynthesis.cancel();
-      const repeat = clampCount(tvVoice.repeat, 1, 3);
-      for (let i = 0; i < repeat; i++) setTimeout(() => tvSpeakMsg(text), 150 + i * 1500);
-    } catch {}
+    if (patient?.name) {
+      callPatientByName(patient.name);
+    }
   };
   // সেটিংস থেকে নমুনা (sample) শোনানো — মার্কির লেখা বা কণ্ঠ ঘোষণার উদাহরণ
   const speakTvSample = (text) => {
@@ -7385,7 +7367,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     try {
       if (!patient) return;
       tvLastCallKeyRef.current = `${patient.id}|${patient.updatedTimestamp || patient.calledAt || ''}`;
-      if (tvSoundEnabled) playTvCallBeep();
+      // if (tvSoundEnabled) playTvCallBeep();
     } catch {}
   };
 
@@ -7470,6 +7452,12 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         const prevTs = Number(p.updatedTimestamp || p.completedTimestamp || p.calledTimestamp || p.registeredTimestamp || 0);
         const nextTs = Math.max(baseStamp, prevTs + 1);
         logicalClockRef.current = Math.max(logicalClockRef.current, nextTs);
+
+        // যদি আগে প্রবেশ করা না থাকে এবং এখন প্রবেশ করানো হয় (toggle on), তবে ভয়েস কল হবে
+        if (!p.inChamber) {
+          callPatientByName(p.name);
+        }
+
         return { ...p, inChamber: !p.inChamber, updatedTimestamp: nextTs };
       }
       return p;
@@ -7515,8 +7503,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       newly.forEach((p) => { try { tvLastCallKeyRef.current = `${p.id}|${p.updatedTimestamp || p.calledAt || ''}`; } catch {} });
       const top = newly.sort((a, b) => (b.updatedTimestamp || 0) - (a.updatedTimestamp || 0))[0];
       if (top) {
-        if (tvSoundEnabled) playTvCallBeep();
-        newly.slice(0, 4).forEach((p, i) => { if (p === top || i > 3) return; setTimeout(() => { if (tvSoundEnabled) playTvCallBeep(); }, (i + 1) * 800); });
+        // বাল্ক আপডেটে সাউন্ড বন্ধ
       }
     }
     updateDatePatientsList(queueSelectedDate, updated);
@@ -7779,7 +7766,12 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                       <span className="font-mono text-[11px] font-black text-slate-700">{toLatinDigits(queueTokenInfo.tokenLabelById.get(p.id) || (p.serialNumber ? `#${p.serialNumber}` : '—'))}</span>
                       <span className="text-sm font-black text-slate-900 truncate">{p.name || '(রোগী)'}</span>
                     </div>
-                    <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">{p.ageYears != null ? `${toBengaliDigits(p.ageYears)}y` : ''}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">{p.ageYears != null ? `${toBengaliDigits(p.ageYears)}y` : ''}</span>
+                      <button type="button" onClick={() => handleUpdateStatus(p.id, 'WAITING')} className="h-6 px-2 flex items-center gap-1 bg-white hover:bg-slate-50 text-cyan-800 border border-cyan-300 rounded-lg shadow-xs text-[10px] font-black cursor-pointer transition">
+                        <RotateCcw className="w-3 h-3" /> ফেরত
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -10799,14 +10791,8 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         {/* ============================================================== */}
         {/* TV MOOD — লাইভ ক্লিনিক ওটিপি / কিউ ডিসপ্লে বোর্ড (হরাইজন্টাল ও ভার্টিক্যাল ভিউ সাপোর্ট) */}
         {/* অডিও সিস্টেমের জন্য ক্লিক টু আনলক */}
-        {!audioUnlocked && (
-          <div onClick={() => {
-            const audio = new Audio('/sounds/chime.mp3');
-            audio.play().then(() => setAudioUnlocked(true));
-          }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 text-white cursor-pointer">
-            <div className="bg-slate-800 p-6 rounded-2xl border border-white/20">🔊 ভয়েস অ্যালার্ট চালু করুন</div>
-          </div>
-        )}
+        {/* পপআপ সরানো হয়েছে */}
+        {null}
         {/* ============================================================== */}
         {/* ===== TV-1: ভার্টিক্যাল বোর্ড (গ্রাফিক্স/ইফেক্টসহ) — স্বাধীন কপি ===== */}
         {activeTab === 'tv' && (currentUser?.isAdmin || currentUser?.isTvMode || currentUser?.role === 'tv') && (
