@@ -4141,6 +4141,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const [allPanelOpen, setAllPanelOpen] = useState(false);
   // কিউ ইনলাইন ভিউ-মোড: কোন তালিকা নিচের লিস্টে দেখানো হবে (pop-up ছাড়া)
   const [queueView, setQueueView] = useState('normal');
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [queueToolbarHidden, setQueueToolbarHidden] = useState(() => { try { return localStorage.getItem('amh_queue_toolbar_hidden') === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem('amh_queue_toolbar_hidden', queueToolbarHidden ? '1' : '0'); } catch { /* ignore */ } }, [queueToolbarHidden]);
   const [queueDeleteTarget, setQueueDeleteTarget] = useState(null);
