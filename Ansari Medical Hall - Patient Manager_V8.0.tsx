@@ -10797,7 +10797,15 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         <div key={activeTab} className={`relative z-10 ${(activeTab === 'tv' || currentUser?.isTvMode || currentUser?.role === 'tv') && isTvPortraitBoard ? 'lg:flex-1 lg:flex lg:flex-col lg:min-h-0' : ''} ${slideDirection === 'left' ? 'animate-panel-slide-left' : 'animate-panel-slide-right'}`}>
         {/* ============================================================== */}
         {/* TV MOOD — লাইভ ক্লিনিক ওটিপি / কিউ ডিসপ্লে বোর্ড (হরাইজন্টাল ও ভার্টিক্যাল ভিউ সাপোর্ট) */}
-        {/* শুধুমাত্র অ্যাডমিন এবং TV Mood ইউজার ছাড়া অন্য কেউ দেখতে পাবে না */}
+        {/* অডিও সিস্টেমের জন্য ক্লিক টু আনলক */}
+        {!audioUnlocked && (
+          <div onClick={() => {
+            const audio = new Audio('/sounds/chime.mp3');
+            audio.play().then(() => setAudioUnlocked(true));
+          }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 text-white cursor-pointer">
+            <div className="bg-slate-800 p-6 rounded-2xl border border-white/20">🔊 ভয়েস অ্যালার্ট চালু করুন</div>
+          </div>
+        )}
         {/* ============================================================== */}
         {/* ===== TV-1: ভার্টিক্যাল বোর্ড (গ্রাফিক্স/ইফেক্টসহ) — স্বাধীন কপি ===== */}
         {activeTab === 'tv' && (currentUser?.isAdmin || currentUser?.isTvMode || currentUser?.role === 'tv') && (
