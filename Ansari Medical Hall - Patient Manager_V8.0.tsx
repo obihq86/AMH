@@ -7459,7 +7459,6 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         return {
           ...p,
           inChamber,
-          ...(inChamber ? { calledAt: Date.now() } : {}),
           updatedTimestamp: nextTs
         };
       }
@@ -7468,15 +7467,30 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     updateDatePatientsList(queueSelectedDate, updated);
   };
 
-  const tvPatientVoiceCallKeysRef = useRef(new Set());
+  const tvPatientVoiceCallKeysRef = useRef(null);
   useEffect(() => {
     if (!isTvScreenModeActive) return;
 
-    const patients = patientsByDate[queueSelectedDate] || [];
-    patients.forEach((patient) => {
-      if (!patient.inChamber || patient.calledAt == null) return;
+    // টিভিতে আজকের তারিখ (TODAY_KEY) এবং সিলেক্টেড তারিখ—দুটিই চেক করা হচ্ছে
+    const activeDateKey = patientsByDate[TODAY_KEY] ? TODAY_KEY : queueSelectedDate;
+    const patients = patientsByDate[activeDateKey] || [];
 
-      const callKey = `${patient.id}|${patient.calledAt}`;
+    // প্রথমবার পেজ লোড হওয়ার সময় আগে থেকে প্রবেশ করা রোগীদের মার্ক করে রাখা (যাতে রিলোডে না ডাকে)
+    if (tvPatientVoiceCallKeysRef.current === null) {
+      const initialSet = new Set();
+      patients.forEach((p) => {
+        if (p.inChamber) {
+          initialSet.add(`${p.id}|${p.updatedTimestamp || 1}`);
+        }
+      });
+      tvPatientVoiceCallKeysRef.current = initialSet;
+      return;
+    }
+
+    patients.forEach((patient) => {
+      if (!patient.inChamber) return;
+
+      const callKey = `${patient.id}|${patient.updatedTimestamp || 1}`;
       if (tvPatientVoiceCallKeysRef.current.has(callKey)) return;
 
       tvPatientVoiceCallKeysRef.current.add(callKey);
@@ -7496,7 +7510,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
 
       const audio = new Audio('/sounds/chime.mp3');
       audio.preload = 'auto';
-      audio.volume = 0;
+      audio.volume = 0.01;
       const finishUnlock = () => {
         audio.removeEventListener('ended', finishUnlock);
         audio.pause();
@@ -7507,25 +7521,22 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       try {
         const playback = audio.play();
         if (playback && typeof playback.then === 'function') {
-          playback.then(finishUnlock).catch((error) => {
-            audio.removeEventListener('ended', finishUnlock);
-            console.warn('TV audio unlock failed:', error);
+          playback.then(finishUnlock).catch(() => {
+            unlockAttempted = false; // ফেইল করলে পরের ক্লিকে আবার চেষ্টা করবে
           });
         }
-      } catch (error) {
-        audio.removeEventListener('ended', finishUnlock);
-        console.warn('TV audio unlock failed:', error);
+      } catch {
+        unlockAttempted = false;
       }
     };
 
     document.addEventListener('click', unlockTvAudio);
-    document.addEventListener('touchstart', unlockTvAudio, { passive: true });
+    document.addEventListener('touchstart', unlockTvAudio);
     return () => {
       document.removeEventListener('click', unlockTvAudio);
       document.removeEventListener('touchstart', unlockTvAudio);
     };
   }, [isTvScreenModeActive]);
-
   // ---- কিউ মাল্টি-মার্কিং ----
   const toggleMarkQueuePatient = useCallback((id) => {
     setMarkedQueueIds(prev => {
