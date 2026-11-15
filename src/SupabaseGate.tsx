@@ -91,9 +91,11 @@ export default function SupabaseGate() {
     void checkCloudState();
   }, [checkCloudState]);
 
-  const handleImport = async () => {
-    const payload = getLocalPayload(roomId);
-    if (!payload) {
+    const handleImport = async () => {
+    setBusy(true);
+    setErrorText('');
+    const localPayload = getLocalPayload(roomId);
+    if (!localPayload) {
       setHasLocalData(false);
       setSyncMode('ready');
       return;
@@ -101,7 +103,54 @@ export default function SupabaseGate() {
     setBusy(true);
     setErrorText('');
     try {
-      await writeClinicState(roomId, payload);
+      const remoteData = await readClinicState(roomId) as any;
+      let finalPayload = localPayload;
+
+      if (remoteData && remoteData.patientsByDate) {
+        const existingKeys = new Set();
+        Object.values(remoteData.patientsByDate).forEach((dayPatients: any) => {
+          if (Array.isArray(dayPatients)) {
+            dayPatients.forEach(p => {
+              const key = `${p.name}|${p.ageYears}|${p.entryTime}`.toLowerCase();
+              existingKeys.add(key);
+            });
+          }
+        });
+
+        const mergedPatientsByDate = { ...(remoteData.patientsByDate as object) };
+        const localPatientsByDate = localPayload.patientsByDate as Record<string, any[]>;
+
+        Object.entries(localPatientsByDate).forEach(([date, patients]) => {
+          if (!mergedPatientsByDate[date]) {
+            mergedPatientsByDate[date] = [];
+          }
+          patients.forEach(p => {
+            const key = `${p.name}|${p.ageYears}|${p.entryTime}`.toLowerCase();
+            if (!existingKeys.has(key)) {
+              mergedPatientsByDate[date].push(p);
+              existingKeys.add(key);
+            }
+          });
+        });
+
+        const existingIds = new Set((remoteData.patientIdDirectory || []).map((p: any) => p.id));
+        const mergedDirectory = [...(remoteData.patientIdDirectory || [])];
+        (localPayload.patientIdDirectory as any[]).forEach(p => {
+          if (!existingIds.has(p.id)) {
+            mergedDirectory.push(p);
+            existingIds.add(p.id);
+          }
+        });
+
+        finalPayload = {
+          ...localPayload,
+          patientsByDate: mergedPatientsByDate,
+          patientIdDirectory: mergedDirectory,
+          updatedAt: Date.now()
+        };
+      }
+
+      await writeClinicState(roomId, finalPayload);
       setSyncMode('ready');
     } catch (error) {
       console.error('Could not migrate local clinic data:', error);
