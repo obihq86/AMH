@@ -3026,12 +3026,10 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       audio.play()
         .then(() => console.log('Audio played successfully'))
         .catch((err) => {
-          console.error('Audio play failed:', err);
-          // অটো-প্লে ব্লকের ক্ষেত্রে দৃশ্যমান অ্যালার্ট দিন (ডিবাগিংয়ের জন্য)
-          if (err.name === 'NotAllowedError') {
-            setSyncToast('⚠️ সাউন্ড বাজাতে ব্রাউজারে একবার ক্লিক করুন!');
-            setTimeout(() => setSyncToast(''), 3000);
-          }
+          console.error('Audio play failed (Autoplay policy likely):', err);
+          // ভিজ্যুয়াল সিগন্যাল
+          setSyncToast('⚠️ সাউন্ড বাজাতে স্ক্রিনে একবার ক্লিক করুন!');
+          setTimeout(() => setSyncToast(''), 3000);
         });
     } catch (e) { console.error('Audio setup error:', e); }
   };
