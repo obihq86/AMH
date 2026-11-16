@@ -2309,6 +2309,18 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   });
 
   useEffect(() => {
+    if (typeof supabase !== 'undefined') {
+      const channel = supabase.channel('clinic-audio');
+      channel.on('broadcast', { event: 'play-call-sound' }, () => {
+        if (typeof playTvCallBeep === 'function') {
+          playTvCallBeep();
+        }
+      }).subscribe();
+      return () => { supabase.removeChannel(channel); };
+    }
+  }, []);
+
+  useEffect(() => {
     try {
       if (typeof window !== 'undefined' && activeTheme) {
         localStorage.setItem('amh_active_theme', activeTheme);
@@ -3033,6 +3045,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       setTimeout(go, 1200);
     } catch {}
   };
+  // নতুন ডাক কণ্ঠে (TTS) পড়ে শোনানো — বাংলা ভয়েস থাকলে সেটি, না হলে ডিফল্ট
   const speakTvCall = (patient) => {
     if (patient?.name) {
       callPatientByName(patient.name);
@@ -7366,8 +7379,15 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     try {
       if (!patient) return;
       tvLastCallKeyRef.current = `${patient.id}|${patient.updatedTimestamp || patient.calledAt || ''}`;
-      // if (tvSoundEnabled) playTvCallBeep();
-    } catch {}
+      // সব ডিভাইসে সিঙ্ক করার জন্য ব্রডকাস্ট করুন
+      if (typeof supabase !== 'undefined') {
+        supabase.channel('clinic-audio').send({
+          type: 'broadcast',
+          event: 'play-call-sound',
+          payload: { patientId: patient.id }
+        });
+      }
+    } catch (e) { console.error('Audio sync error:', e); }
   };
 
   const handleCallNextPatient = () => {
@@ -7452,91 +7472,18 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         const nextTs = Math.max(baseStamp, prevTs + 1);
         logicalClockRef.current = Math.max(logicalClockRef.current, nextTs);
 
-        const inChamber = !p.inChamber;
-        if (inChamber) {
-          tvLastCallKeyRef.current = `${p.id}|${nextTs}`;
+        // যদি আগে প্রবেশ করা না থাকে এবং এখন প্রবেশ করানো হয় (toggle on), তবে ভয়েস কল হবে
+        if (!p.inChamber) {
+          callPatientByName(p.name);
         }
-        return {
-          ...p,
-          inChamber,
-          updatedTimestamp: nextTs
-        };
+
+        return { ...p, inChamber: !p.inChamber, updatedTimestamp: nextTs };
       }
       return p;
     });
     updateDatePatientsList(queueSelectedDate, updated);
   };
 
-  const tvPatientVoiceCallKeysRef = useRef(null);
-  useEffect(() => {
-    if (!isTvScreenModeActive) return;
-
-    // টিভিতে আজকের তারিখ (TODAY_KEY) এবং সিলেক্টেড তারিখ—দুটিই চেক করা হচ্ছে
-    const activeDateKey = patientsByDate[TODAY_KEY] ? TODAY_KEY : queueSelectedDate;
-    const patients = patientsByDate[activeDateKey] || [];
-
-    // প্রথমবার পেজ লোড হওয়ার সময় আগে থেকে প্রবেশ করা রোগীদের মার্ক করে রাখা (যাতে রিলোডে না ডাকে)
-    if (tvPatientVoiceCallKeysRef.current === null) {
-      const initialSet = new Set();
-      patients.forEach((p) => {
-        if (p.inChamber) {
-          initialSet.add(`${p.id}|${p.updatedTimestamp || 1}`);
-        }
-      });
-      tvPatientVoiceCallKeysRef.current = initialSet;
-      return;
-    }
-
-    patients.forEach((patient) => {
-      if (!patient.inChamber) return;
-
-      const callKey = `${patient.id}|${patient.updatedTimestamp || 1}`;
-      if (tvPatientVoiceCallKeysRef.current.has(callKey)) return;
-
-      tvPatientVoiceCallKeysRef.current.add(callKey);
-      callPatientByName(patient.name);
-    });
-  }, [callPatientByName, isTvScreenModeActive, patientsByDate, queueSelectedDate]);
-
-  useEffect(() => {
-    if (!isTvScreenModeActive || typeof document === 'undefined') return undefined;
-
-    let unlockAttempted = false;
-    const unlockTvAudio = () => {
-      if (unlockAttempted) return;
-      unlockAttempted = true;
-      document.removeEventListener('click', unlockTvAudio);
-      document.removeEventListener('touchstart', unlockTvAudio);
-
-      const audio = new Audio('/sounds/chime.mp3');
-      audio.preload = 'auto';
-      audio.volume = 0.01;
-      const finishUnlock = () => {
-        audio.removeEventListener('ended', finishUnlock);
-        audio.pause();
-        audio.currentTime = 0;
-        audio.volume = 1;
-      };
-      audio.addEventListener('ended', finishUnlock);
-      try {
-        const playback = audio.play();
-        if (playback && typeof playback.then === 'function') {
-          playback.then(finishUnlock).catch(() => {
-            unlockAttempted = false; // ফেইল করলে পরের ক্লিকে আবার চেষ্টা করবে
-          });
-        }
-      } catch {
-        unlockAttempted = false;
-      }
-    };
-
-    document.addEventListener('click', unlockTvAudio);
-    document.addEventListener('touchstart', unlockTvAudio);
-    return () => {
-      document.removeEventListener('click', unlockTvAudio);
-      document.removeEventListener('touchstart', unlockTvAudio);
-    };
-  }, [isTvScreenModeActive]);
   // ---- কিউ মাল্টি-মার্কিং ----
   const toggleMarkQueuePatient = useCallback((id) => {
     setMarkedQueueIds(prev => {
@@ -7838,12 +7785,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                       <span className="font-mono text-[11px] font-black text-slate-700">{toLatinDigits(queueTokenInfo.tokenLabelById.get(p.id) || (p.serialNumber ? `#${p.serialNumber}` : '—'))}</span>
                       <span className="text-sm font-black text-slate-900 truncate">{p.name || '(রোগী)'}</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">{p.ageYears != null ? `${toBengaliDigits(p.ageYears)}y` : ''}</span>
-                      <button type="button" onClick={() => handleUpdateStatus(p.id, 'WAITING')} className="h-6 px-2 flex items-center gap-1 bg-white hover:bg-slate-50 text-cyan-800 border border-cyan-300 rounded-lg shadow-xs text-[10px] font-black cursor-pointer transition">
-                        <RotateCcw className="w-3 h-3" /> ফেরত
-                      </button>
-                    </div>
+                    <button type="button" onClick={() => sec.label === 'ডিলিট' ? handleRestoreDeletedRecord(p) : handleUpdateStatus(p.id, 'WAITING')} className="h-6 px-1.5 flex items-center gap-1 bg-white hover:bg-cyan-50 text-cyan-800 border border-cyan-200 rounded-md shadow-2xs text-[10px] font-bold shrink-0" title="অপেক্ষমান তালিকায় ফিরিয়ে আনুন"><RotateCcw className="w-3 h-3" /> ফেরত</button>
                   </div>
                 ))
               )}
@@ -8001,16 +7943,17 @@ export default function App({ cloudSyncEnabled = true } = {}) {
 
   // নতুন ডাকে বিপ ও/অথবা কণ্ঠ ঘোষণা (সেটিংসে চালু থাকলে)
   useEffect(() => {
-    if ((!tvSoundEnabled && !tvVoice.enabled) || !isTvScreenModeActive) return;
+    if ((!tvSoundEnabled && !tvVoice.enabled) || !isAuthenticated) return;
+    if (activeTab !== 'tv' && !(currentUser?.isTvMode || currentUser?.role === 'tv')) return;
     const top = tvCalledPatientsSorted?.[0];
     const key = top ? `${top.id}|${top.updatedTimestamp || top.calledAt || ''}` : '';
     if (tvLastCallKeyRef.current === null) { tvLastCallKeyRef.current = key; return; }
     if (key && key !== tvLastCallKeyRef.current) {
       if (tvSoundEnabled) playTvCallBeep();
-      if (tvVoice.enabled && !top?.inChamber) speakTvCall(top);
+      if (tvVoice.enabled) speakTvCall(top);
     }
     tvLastCallKeyRef.current = key;
-  }, [tvSoundEnabled, tvVoice, isTvScreenModeActive, tvCalledPatientsSorted]);
+  }, [tvSoundEnabled, tvVoice, isAuthenticated, activeTab, currentUser, tvCalledPatientsSorted]);
 
   const tvAbsentPatients = useMemo(() => {
     const list = patientsByDate[queueSelectedDate || TODAY_KEY] || [];
