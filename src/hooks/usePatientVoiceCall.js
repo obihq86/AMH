@@ -1,18 +1,51 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 const SPEAK_API_URL = 'https://chdqbdnrqdrxbazbbhqp.supabase.co/functions/v1/speak-name';
 
 export const usePatientVoiceCall = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioQueue = useRef(Promise.resolve());
+  const sharedAudioRef = useRef(null);
 
-  const playAudioSafe = useCallback((url, maxWaitMs = 8000) => {
+  // ১. একটি মাত্র অডিও এলিমেন্ট তৈরি ও ইউজারের প্রথম ক্লিকে সেটি স্থায়ীভাবে আনলক করা
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const audio = new Audio();
+    audio.preload = 'auto';
+    sharedAudioRef.current = audio;
+
+    const unlock = () => {
+      try {
+        audio.src = '/sounds/chime.mp3';
+        audio.volume = 0.01;
+        const p = audio.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            audio.pause();
+            audio.currentTime = 0;
+            audio.volume = 1;
+            document.removeEventListener('click', unlock);
+            document.removeEventListener('touchstart', unlock);
+          }).catch(() => {});
+        }
+      } catch {}
+    };
+
+    document.addEventListener('click', unlock);
+    document.addEventListener('touchstart', unlock);
+    return () => {
+      document.removeEventListener('click', unlock);
+      document.removeEventListener('touchstart', unlock);
+    };
+  }, []);
+
+  const playOnSharedAudio = useCallback((url, maxWaitMs = 9000) => {
     return new Promise((resolve) => {
-      let settled = false;
-      const audio = new Audio();
-      audio.src = url;
-      audio.preload = 'auto';
+      const audio = sharedAudioRef.current || new Audio();
+      sharedAudioRef.current = audio;
+      audio.volume = 1;
 
+      let settled = false;
       const done = () => {
         if (settled) return;
         settled = true;
@@ -22,22 +55,19 @@ export const usePatientVoiceCall = () => {
         resolve();
       };
 
-      // পুরনো টিভি ব্রাউজারে ended ইভেন্ট মিস হলে যেন কিউ আটকে না থাকে
       const timer = setTimeout(done, maxWaitMs);
-
       audio.addEventListener('ended', done);
       audio.addEventListener('error', done);
 
       try {
+        audio.pause();
+        audio.src = url;
+        audio.load();
         const playPromise = audio.play();
         if (playPromise && typeof playPromise.then === 'function') {
-          playPromise.catch((err) => {
-            console.warn('Audio play blocked/failed:', url, err);
-            done();
-          });
+          playPromise.catch(() => done());
         }
-      } catch (err) {
-        console.warn('Audio exception:', url, err);
+      } catch {
         done();
       }
     });
@@ -49,17 +79,16 @@ export const usePatientVoiceCall = () => {
     audioQueue.current = audioQueue.current.then(async () => {
       setIsSpeaking(true);
       try {
-        // ১. চাইম বাজবে (যদি কোনো কারণে ফেইল বা ব্লক হয় তবুও ভয়েস কল চলবে)
-        await playAudioSafe('/sounds/chime.mp3', 3500);
-
+        // ১. আগে চাইম বাজবে
+        await playOnSharedAudio('/sounds/chime.mp3', 4000);
         // ২. এরপর Supabase থেকে রোগীর নামের বাংলা ঘোষণা বাজবে
         const voiceUrl = `${SPEAK_API_URL}?name=${encodeURIComponent(patientName.trim())}`;
-        await playAudioSafe(voiceUrl, 9000);
+        await playOnSharedAudio(voiceUrl, 10000);
       } finally {
         setIsSpeaking(false);
       }
     });
-  }, [playAudioSafe]);
+  }, [playOnSharedAudio]);
 
   return { callPatientByName, isSpeaking };
 };
