@@ -3020,10 +3020,11 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const tvLastCallKeyRef = useRef(null);
   const playTvCallBeep = () => {
     try {
+      console.log('playTvCallBeep triggered');
       const audio = new Audio('/sounds/chime.mp3');
       audio.volume = Math.min(1, Math.max(0, tvBeep?.volume ?? 0.8));
-      audio.play().catch(() => {});
-    } catch {}
+      audio.play().then(() => console.log('Audio played successfully')).catch((err) => console.error('Audio play failed:', err));
+    } catch (e) { console.error('Audio setup error:', e); }
   };
   // ব্রাউজারের ভয়েস-তালিকা অ্যাসিঙ্কভাবে লোড হয়; খালি তালিকায় speak() করলে Chrome উক্তি গ্রহণ করলেও
   // শব্দ বের না-ও পারে — তাই voiceschanged-এর অপেক্ষা করা হয় এবং বাংলা (bn) ভয়েস বেছে নেওয়া হয়
@@ -5654,7 +5655,23 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   };
   const tvsetTopicRef = useRef('');
   const lastTvSetTsRef = useRef(0);
-  // ছোট প্যাকেট সরাসরি সব সংযুক্ত ব্রোকারে পাঠায় (patient-স্টেটের বিশাল প্যাকেটের উপর নির্ভর নয়)
+  
+  // ছোট প্যাকেট সরাসরি সব সংযুক্ত ব্রোকারে পাঠায় (পেশেন্ট-স্টেটের বিশাল প্যাকেটের উপর নির্ভর নয়)
+  const publishAudioTriggerToPeers = useCallback(() => {
+    try {
+      if (!tvsetTopicRef.current) return;
+      const pkt = JSON.stringify({ 
+        action: 'AUDIO_TRIGGER', 
+        ts: Date.now(), 
+        senderId: clientSessionId.current 
+      });
+      (mqttClientsRef.current || []).forEach((c) => { 
+        try { if (c && c.connected) c.publish(tvsetTopicRef.current, pkt); } catch {} 
+      });
+      try { if (bcRef.current) bcRef.current.postMessage({ audioTrigger: pkt }); } catch {}
+    } catch {}
+  }, []);
+
   const publishTvSetToPeers = (json) => {
     if (!tvSyncEnabledRef.current) return; // সিঙ্ক বন্ধ — নিজের TV সেটিংস অন্য ডিভাইসে পাঠাব না
     try {
@@ -6460,6 +6477,12 @@ export default function App({ cloudSyncEnabled = true } = {}) {
               } else if (packet.action === 'PONG_TEST') {
                 setSyncToast(`⚡ "${packet.senderName || 'অন্য ডিভাইস'}" সাড়া দিয়েছে! লাইভ সংযুক্ত।`);
                 setTimeout(() => setSyncToast(''), 4000);
+              } else if (packet.action === 'AUDIO_TRIGGER') {
+                // অন্য ডিভাইস থেকে অডিও সিগন্যাল আসলে সাউন্ড বাজান
+                if (packet.senderId !== clientSessionId.current) {
+                  if (typeof playTvCallBeep === 'function') playTvCallBeep();
+                  else if (window.playTvCallBeep) window.playTvCallBeep();
+                }
               }
             }
           } catch (err) {
@@ -7385,10 +7408,11 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       if (!patient) return;
       tvLastCallKeyRef.current = `${patient.id}|${patient.updatedTimestamp || patient.calledAt || ''}`;
       
-      const now = Date.now();
-      const roomId = normalizeRoomKey(syncChannelId);
-      writeClinicState(roomId, { ...latestStateRef.current, lastSoundTriggeredAt: now })
-        .catch(e => console.error('Audio sync db update failed:', e));
+      // MQTT এর মাধ্যমে সব ডিভাইসে অডিও সিগন্যাল পাঠান
+      publishAudioTriggerToPeers();
+      
+      // লোকাল অডিও প্লে (যদি ব্রডকাস্ট লিসেনার নিজেরটা ইগনোর করে)
+      if (typeof playTvCallBeep === 'function') playTvCallBeep();
     } catch (e) { console.error('Audio notify error:', e); }
   };
 
