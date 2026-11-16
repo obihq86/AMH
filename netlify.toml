@@ -12,6 +12,46 @@
   status = 200
 
 [[redirects]]
+  from = "/tv1"
+  to = "/tv.html"
+  status = 200
+
+[[redirects]]
+  from = "/tv1/*"
+  to = "/tv.html"
+  status = 200
+
+[[redirects]]
+  from = "/tv2"
+  to = "/tv.html"
+  status = 200
+
+[[redirects]]
+  from = "/tv2/*"
+  to = "/tv.html"
+  status = 200
+
+[[redirects]]
+  from = "/tv3"
+  to = "/tv.html"
+  status = 200
+
+[[redirects]]
+  from = "/tv3/*"
+  to = "/tv.html"
+  status = 200
+
+[[redirects]]
+  from = "/tv4"
+  to = "/tv.html"
+  status = 200
+
+[[redirects]]
+  from = "/tv4/*"
+  to = "/tv.html"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
