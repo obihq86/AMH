@@ -3023,9 +3023,24 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       console.log('playTvCallBeep triggered');
       const audio = new Audio('/sounds/chime.mp3');
       audio.volume = Math.min(1, Math.max(0, tvBeep?.volume ?? 0.8));
-      audio.play().then(() => console.log('Audio played successfully')).catch((err) => console.error('Audio play failed:', err));
+      audio.play()
+        .then(() => console.log('Audio played successfully'))
+        .catch((err) => {
+          console.error('Audio play failed:', err);
+          // অটো-প্লে ব্লকের ক্ষেত্রে দৃশ্যমান অ্যালার্ট দিন (ডিবাগিংয়ের জন্য)
+          if (err.name === 'NotAllowedError') {
+            setSyncToast('⚠️ সাউন্ড বাজাতে ব্রাউজারে একবার ক্লিক করুন!');
+            setTimeout(() => setSyncToast(''), 3000);
+          }
+        });
     } catch (e) { console.error('Audio setup error:', e); }
   };
+  // গ্লোবাল অ্যাক্সেস নিশ্চিত করুন
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.playTvCallBeep = playTvCallBeep;
+    }
+  }, [playTvCallBeep]);
   // ব্রাউজারের ভয়েস-তালিকা অ্যাসিঙ্কভাবে লোড হয়; খালি তালিকায় speak() করলে Chrome উক্তি গ্রহণ করলেও
   // শব্দ বের না-ও পারে — তাই voiceschanged-এর অপেক্ষা করা হয় এবং বাংলা (bn) ভয়েস বেছে নেওয়া হয়
   const tvSpeakMsg = (msg, onNoBn) => {
@@ -5657,16 +5672,18 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const lastTvSetTsRef = useRef(0);
   
   // ছোট প্যাকেট সরাসরি সব সংযুক্ত ব্রোকারে পাঠায় (পেশেন্ট-স্টেটের বিশাল প্যাকেটের উপর নির্ভর নয়)
+  const cmdTopicRef = useRef(''); // cmdTopic এর রেফারেন্স যোগ করা হয়েছে
+
   const publishAudioTriggerToPeers = useCallback(() => {
     try {
-      if (!tvsetTopicRef.current) return;
+      if (!cmdTopicRef.current) return;
       const pkt = JSON.stringify({ 
         action: 'AUDIO_TRIGGER', 
         ts: Date.now(), 
         senderId: clientSessionId.current 
       });
       (mqttClientsRef.current || []).forEach((c) => { 
-        try { if (c && c.connected) c.publish(tvsetTopicRef.current, pkt); } catch {} 
+        try { if (c && c.connected) c.publish(cmdTopicRef.current, pkt); } catch {} 
       });
       try { if (bcRef.current) bcRef.current.postMessage({ audioTrigger: pkt }); } catch {}
     } catch {}
@@ -6426,6 +6443,12 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                   try {
                     if (pkt.json !== JSON.stringify(collectTvConfig())) applyTvConfigParsed(JSON.parse(pkt.json));
                   } catch {}
+                }
+              } else if (pkt && pkt.action === 'AUDIO_TRIGGER') {
+                // TVSET টপিকেও অডিও সিগন্যাল হ্যান্ডেল করুন
+                if (pkt.senderId !== clientSessionId.current) {
+                  if (typeof playTvCallBeep === 'function') playTvCallBeep();
+                  else if (window.playTvCallBeep) window.playTvCallBeep();
                 }
               }
             } else if (topic === stateTopic) {
@@ -7408,10 +7431,15 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       if (!patient) return;
       tvLastCallKeyRef.current = `${patient.id}|${patient.updatedTimestamp || patient.calledAt || ''}`;
       
-      // MQTT এর মাধ্যমে সব ডিভাইসে অডিও সিগন্যাল পাঠান
+      // (১) MQTT ব্রডকাস্ট
       publishAudioTriggerToPeers();
       
-      // লোকাল অডিও প্লে (যদি ব্রডকাস্ট লিসেনার নিজেরটা ইগনোর করে)
+      // (২) লোকাল স্টোরেজ সিঙ্ক (একই ব্রাউজারের বিভিন্ন ট্যাবের জন্য)
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('amh_audio_trigger', Date.now().toString());
+      }
+      
+      // (৩) লোকাল সাউন্ড
       if (typeof playTvCallBeep === 'function') playTvCallBeep();
     } catch (e) { console.error('Audio notify error:', e); }
   };
