@@ -73,6 +73,8 @@ export const usePatientVoiceCall = () => {
     });
   }, []);
 
+  const audioCache = useRef(new Map());
+  
   const callPatientByName = useCallback((patientName) => {
     if (!patientName) return;
 
@@ -81,8 +83,14 @@ export const usePatientVoiceCall = () => {
       try {
         // ১. আগে চাইম বাজবে
         await playOnSharedAudio('/sounds/chime.mp3', 4000);
-        // ২. এরপর Supabase থেকে রোগীর নামের বাংলা ঘোষণা বাজবে
-        const voiceUrl = `${SPEAK_API_URL}?name=${encodeURIComponent(patientName.trim())}`;
+        
+        // ২. ক্যাশে থাকলে ক্যাশ থেকে, না থাকলে Supabase থেকে
+        let voiceUrl = audioCache.current.get(patientName.trim());
+        if (!voiceUrl) {
+           voiceUrl = `${SPEAK_API_URL}?name=${encodeURIComponent(patientName.trim())}`;
+           audioCache.current.set(patientName.trim(), voiceUrl);
+        }
+        
         await playOnSharedAudio(voiceUrl, 10000);
       } finally {
         setIsSpeaking(false);

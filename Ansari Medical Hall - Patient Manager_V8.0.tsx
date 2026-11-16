@@ -6531,9 +6531,21 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         try {
           const snapshot = await readClinicSnapshot(safeRoomKey);
           if (!isMounted) return;
+          
+          // মাত্র ২ দিনের ডেটা ফিল্টার করে রাখা (বর্তমান ও গত ১ দিনের)
+          const now = new Date();
+          const today = now.toISOString().split('T')[0];
+          const yesterday = new Date(now.setDate(now.getDate() - 1)).toISOString().split('T')[0];
+          
           if (snapshot.payload && snapshot.updatedAt > latestRemoteTimestamp) {
             latestRemoteTimestamp = snapshot.updatedAt;
-            applyIncomingSyncPayload(snapshot.payload, {
+            const fullData = snapshot.payload as any;
+            const filteredPatients = {
+              [today]: fullData.patientsByDate?.[today] || [],
+              [yesterday]: fullData.patientsByDate?.[yesterday] || []
+            };
+            
+            applyIncomingSyncPayload({ ...fullData, patientsByDate: filteredPatients }, {
               allowSelf: true,
               forceApply: !hasLoadedSnapshot
             });

@@ -26,8 +26,9 @@ export default async function handler(req, res) {
     if (!validRoomId(roomId)) return sendJson(res, 400, { error: 'Invalid room identifier.' });
 
     if (req.method === 'GET') {
+      const isCheckOnly = req.query?.checkOnly === 'true';
       const query = new URLSearchParams({
-        select: 'payload,updated_at',
+        select: isCheckOnly ? 'updated_at' : 'payload,updated_at',
         room_id: `eq.${roomId}`,
         limit: '1'
       });
@@ -35,7 +36,7 @@ export default async function handler(req, res) {
       const rows = await response.json();
       const row = rows[0];
       return sendJson(res, 200, {
-        payload: row?.payload ?? null,
+        payload: isCheckOnly ? null : (row?.payload ?? null),
         updatedAt: Number(row?.updated_at) || 0
       });
     }

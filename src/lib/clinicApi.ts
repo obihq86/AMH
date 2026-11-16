@@ -20,8 +20,8 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export async function readClinicSnapshot(roomId: string): Promise<ClinicSnapshot> {
-  const query = new URLSearchParams({ roomId });
+export async function readClinicSnapshot(roomId: string, checkOnly = false): Promise<ClinicSnapshot> {
+  const query = new URLSearchParams({ roomId, checkOnly: String(checkOnly) });
   const result = await requestJson<ClinicSnapshot>(`/api/clinic-state?${query}`);
   return {
     payload: result.payload,
