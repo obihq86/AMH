@@ -1,0 +1,5 @@
+name = "ansari-medical-hall"
+pages_build_output_dir = "dist"
+
+[compatibility_date]
+compatibility_date = "2026-11-16"
