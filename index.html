@@ -36,6 +36,31 @@
           });
         }
       }
+
+      // Netlify-এর ফ্লোটিং ব্যাজ স্বয়ংক্রিয়ভাবে রিমুভ করার স্ক্রিপ্ট
+      (function () {
+        function hideNetlifyBadge() {
+          document.querySelectorAll('a[href*="netlify.com"], iframe[src*="netlify"], div, aside, section').forEach(function (el) {
+            if (el.id === 'root') return;
+            if (el.shadowRoot && el.shadowRoot.innerHTML.indexOf('netlify') !== -1) {
+              el.remove();
+              return;
+            }
+            if (el.tagName === 'A' && el.href && el.href.indexOf('netlify.com') !== -1) {
+              var parent = el.parentElement;
+              if (parent && parent.id !== 'root' && parent.tagName !== 'BODY') {
+                parent.remove();
+              } else {
+                el.remove();
+              }
+            }
+          });
+        }
+        hideNetlifyBadge();
+        window.addEventListener('load', hideNetlifyBadge);
+        var observer = new MutationObserver(hideNetlifyBadge);
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      })();
     </script>
   </body>
 </html>
