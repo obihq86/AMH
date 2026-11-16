@@ -2311,11 +2311,16 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   useEffect(() => {
     if (typeof supabase !== 'undefined') {
       const channel = supabase.channel('clinic-audio');
-      channel.on('broadcast', { event: 'play-call-sound' }, () => {
+      channel.on('broadcast', { event: 'play-call-sound' }, (payload) => {
+        console.log('Received broadcast play-call-sound');
         if (typeof playTvCallBeep === 'function') {
           playTvCallBeep();
+        } else if (window.playTvCallBeep) {
+          window.playTvCallBeep();
         }
-      }).subscribe();
+      }).subscribe((status) => {
+        console.log('Channel subscription status:', status);
+      });
       return () => { supabase.removeChannel(channel); };
     }
   }, []);
@@ -7379,15 +7384,12 @@ export default function App({ cloudSyncEnabled = true } = {}) {
     try {
       if (!patient) return;
       tvLastCallKeyRef.current = `${patient.id}|${patient.updatedTimestamp || patient.calledAt || ''}`;
-      // সব ডিভাইসে সিঙ্ক করার জন্য ব্রডকাস্ট করুন
-      if (typeof supabase !== 'undefined') {
-        supabase.channel('clinic-audio').send({
-          type: 'broadcast',
-          event: 'play-call-sound',
-          payload: { patientId: patient.id }
-        });
-      }
-    } catch (e) { console.error('Audio sync error:', e); }
+      
+      const now = Date.now();
+      const roomId = normalizeRoomKey(syncChannelId);
+      writeClinicState(roomId, { ...latestStateRef.current, lastSoundTriggeredAt: now })
+        .catch(e => console.error('Audio sync db update failed:', e));
+    } catch (e) { console.error('Audio notify error:', e); }
   };
 
   const handleCallNextPatient = () => {
