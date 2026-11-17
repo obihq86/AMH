@@ -6532,18 +6532,22 @@ export default function App({ cloudSyncEnabled = true } = {}) {
           const snapshot = await readClinicSnapshot(safeRoomKey);
           if (!isMounted) return;
           
-          // মাত্র ২ দিনের ডেটা ফিল্টার করে রাখা (বর্তমান ও গত ১ দিনের)
+          // বর্তমান ও গত ১ দিন এবং পরবর্তী ৬ দিনের ডেটা ফিল্টার করে রাখা
           const now = new Date();
-          const today = now.toISOString().split('T')[0];
-          const yesterday = new Date(now.setDate(now.getDate() - 1)).toISOString().split('T')[0];
+          const datesToKeep = [today, yesterday];
+          for (let i = 1; i <= 6; i++) {
+            const futureDate = new Date();
+            futureDate.setDate(now.getDate() + i);
+            datesToKeep.push(futureDate.toISOString().split('T')[0]);
+          }
           
           if (snapshot.payload && snapshot.updatedAt > latestRemoteTimestamp) {
             latestRemoteTimestamp = snapshot.updatedAt;
             const fullData = snapshot.payload as any;
-            const filteredPatients = {
-              [today]: fullData.patientsByDate?.[today] || [],
-              [yesterday]: fullData.patientsByDate?.[yesterday] || []
-            };
+            const filteredPatients = {};
+            datesToKeep.forEach(d => {
+                filteredPatients[d] = fullData.patientsByDate?.[d] || [];
+            });
             
             applyIncomingSyncPayload({ ...fullData, patientsByDate: filteredPatients }, {
               allowSelf: true,
