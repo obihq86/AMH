@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="bn">
+<html lang="bn" translate="no" class="notranslate">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -14,6 +14,22 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AMH" />
+    <style>
+      /* Netlify-এর যেকোনো ইনজেক্টেড ব্যাজ বা ফ্লোটিং বার হাইড করার জন্য */
+      body > *:not(#root):not(script):not(#amh-portal-root),
+      iframe[src*="netlify"],
+      a[href*="netlify.com"],
+      div[class*="netlify"],
+      div[id*="netlify"],
+      [data-netlify-badge] {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
@@ -37,29 +53,20 @@
         }
       }
 
-      // Netlify-এর ফ্লোটিং ব্যাজ স্বয়ংক্রিয়ভাবে রিমুভ করার স্ক্রিপ্ট
+      // #root এর বাইরে Netlify ইনজেক্ট করা যেকোনো ব্যাজ বা উইজেট রিমুভ করার স্ক্রিপ্ট
       (function () {
-        function hideNetlifyBadge() {
-          document.querySelectorAll('a[href*="netlify.com"], iframe[src*="netlify"], div, aside, section').forEach(function (el) {
-            if (el.id === 'root') return;
-            if (el.shadowRoot && el.shadowRoot.innerHTML.indexOf('netlify') !== -1) {
+        function nukeExternalWidgets() {
+          Array.from(document.body.children).forEach(function (el) {
+            if (el.id !== 'root' && el.id !== 'amh-portal-root' && el.tagName !== 'SCRIPT') {
               el.remove();
-              return;
-            }
-            if (el.tagName === 'A' && el.href && el.href.indexOf('netlify.com') !== -1) {
-              var parent = el.parentElement;
-              if (parent && parent.id !== 'root' && parent.tagName !== 'BODY') {
-                parent.remove();
-              } else {
-                el.remove();
-              }
             }
           });
         }
-        hideNetlifyBadge();
-        window.addEventListener('load', hideNetlifyBadge);
-        var observer = new MutationObserver(hideNetlifyBadge);
-        observer.observe(document.documentElement, { childList: true, subtree: true });
+        nukeExternalWidgets();
+        window.addEventListener('load', nukeExternalWidgets);
+        setTimeout(nukeExternalWidgets, 500);
+        setTimeout(nukeExternalWidgets, 1500);
+        new MutationObserver(nukeExternalWidgets).observe(document.body, { childList: true });
       })();
     </script>
   </body>
