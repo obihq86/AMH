@@ -13534,7 +13534,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         {/* Admin Panel (সরাসরি অ্যাডমিনের জন্য উন্মুক্ত, কোনো অতিরিক্ত পাসওয়ার্ড ছাড়া) */}
         {activeTab === 'team' && currentUser?.isAdmin && (
           <div className="max-w-4xl mx-auto space-y-4">
-            <SpotlightCard variant="sub">
+            <SpotlightCard variant="sub" className="liquid-glass !bg-transparent">
               <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-between shadow-2xs">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-700" />
@@ -13544,8 +13544,8 @@ export default function App({ cloudSyncEnabled = true } = {}) {
             </SpotlightCard>
 
                 {/* লগইন পাসওয়ার্ড রিকোয়ার্ড অন/অফ বাটন */}
-                <SpotlightCard dark>
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border border-slate-700 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <SpotlightCard dark className="liquid-glass !bg-transparent">
+                <div className="p-4 rounded-2xl text-white border border-slate-700/50 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black transition-colors ${
                       requireLoginPassword ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-400/40' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'

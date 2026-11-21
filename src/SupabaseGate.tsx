@@ -83,7 +83,8 @@ export default function SupabaseGate() {
       setSyncMode(hasData ? 'choice' : 'ready');
     } catch (error) {
       console.error('Could not load the Supabase clinic state:', error);
-      setErrorText(error instanceof Error ? error.message : 'Supabase database connection failed.');
+      // IndexedDB বা সিঙ্ক এরর হলে অ্যাপকে ক্র্যাশ না করিয়ে লোকাল মোডে পাঠিয়ে দেব
+      setSyncMode('local');
     }
   }, [roomId]);
 

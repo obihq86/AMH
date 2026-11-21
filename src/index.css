@@ -270,6 +270,121 @@ a,
   touch-action: manipulation;
 }
 
+/* Liquid Glass (গ্লাসমরফিজম ও রিফ্র্যাকশন ইফেক্ট) */
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 8px 32px rgba(15, 23, 42, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.85);
+  transition: background-color 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
+}
+
+.liquid-glass:hover {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(13, 148, 136, 0.35); /* আপনার থিমের টিল/গ্রিন বর্ডার টিন্ট */
+  box-shadow:
+    0 12px 36px rgba(13, 148, 136, 0.12),
+    inset 0 1px 2px rgba(255, 255, 255, 0.95);
+}
+
+/* স্পটলাইট কার্ডের ভেতরের সারফেসে গ্লাস ইফেক্ট দিতে চাইলে */
+.spotlight-card__surface.liquid-glass,
+.queue-spotlight-card__surface.liquid-glass {
+  border: 0 !important;
+}
+
+/* ===== Minimal Light & Minimal Dark Themes ===== */
+/* Panel/container backgrounds inherited from Plain UI (Light) and Neon Glass (Dark) */
+.amh-theme-minimal-light {
+  --amh-bg: #f0fdf4;
+  --amh-panel: #ffffff;
+  --amh-text: #1e293b;
+  --amh-accent: #059669;
+  --amh-border: #e2e8f0;
+}
+.amh-theme-minimal-dark {
+  --amh-bg: #1e293b;
+  --amh-panel: #334155;
+  --amh-text: #f1f5f9;
+  --amh-accent: #38bdf8;
+  --amh-border: rgba(148, 163, 184, 0.25);
+}
+
+/* Modern SaaS-style control overrides only for Minimal themes */
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) button {
+  border: none !important;
+  border-radius: 6px !important;
+  box-shadow: none;
+  transform: none;
+  transition: background-color 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+  background-color: var(--amh-border);
+  color: var(--amh-text);
+}
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) button:hover {
+  opacity: 1;
+  background-color: var(--amh-accent);
+  color: white;
+  transform: none;
+  box-shadow: none;
+}
+
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) input,
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) select,
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) textarea {
+  border: 1.5px solid var(--amh-border);
+  border-radius: 6px !important;
+  box-shadow: none;
+}
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) input:focus,
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) select:focus,
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) textarea:focus {
+  outline: 2px solid var(--amh-accent);
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) svg {
+  filter: none;
+  animation: none;
+  stroke-width: 1.5px !important;
+  opacity: 0.8 !important;
+  filter: none !important;
+  animation: none !important;
+}
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) .animate-pulse {
+  animation: none !important;
+}
+
+/* Flat pill toggle */
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) [role="switch"],
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) .switch {
+  border-radius: 999px;
+  box-shadow: none;
+  border: none !important;
+  background-color: var(--amh-border) !important;
+}
+
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) [role="switch"][aria-checked="true"],
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) .switch.checked {
+  background-color: var(--amh-accent) !important;
+}
+
+/* Queue Panel and Sidebar tweaks for Minimal theme */
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) .queue-spotlight-card,
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) .spotlight-card {
+  border: 1px solid var(--amh-border) !important;
+  background: var(--amh-panel) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+}
+
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) .queue-spotlight-card::before,
+:is(.amh-theme-minimal-light, .amh-theme-minimal-dark) .spotlight-card::before {
+  display: none !important; /* Minimal এ কোনো স্পটলাইট গ্লো থাকবে না */
+}
+
 /* সিস্টেমে motion কমানোর অনুরোধ থাকলে অ্যানিমেশন প্রায় বন্ধ */
 @media (prefers-reduced-motion: reduce) {
   *,

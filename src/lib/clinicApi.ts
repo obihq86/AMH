@@ -13,6 +13,12 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
       ...init?.headers
     }
   });
+
+  // যদি 404 আসে, তবে আমরা এটিকে একটি নির্দিষ্ট এরর হিসেবে থ্রো করব
+  if (response.status === 404) {
+    throw new Error('API_NOT_FOUND');
+  }
+
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(typeof body.error === 'string' ? body.error : 'সার্ভার অনুরোধ সম্পন্ন হয়নি।');

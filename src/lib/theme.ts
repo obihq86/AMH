@@ -24,6 +24,8 @@ export const TRANSLATIONS = {
 };
 
 export const THEMES = [
+  { id: 'minimal-light', name: 'Minimal Light' },
+  { id: 'minimal-dark', name: 'Minimal Dark' },
   { id: 'aurora-ui', name: 'Aurora UI (Light)' },
   { id: 'gradient-mesh-ui', name: 'Gradient Mesh UI (Light)' },
   { id: 'aurora-glassmorphism-ui', name: 'Aurora UI Gradient with Glassmorphism (Light)' },
