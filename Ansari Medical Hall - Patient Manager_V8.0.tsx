@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { QueueSpotlightCard, SpotlightCard } from './src/components/SpotlightCard';
+import { GooeyToggle } from './src/components/GooeyToggle';
 import { usePatientVoiceCall } from './src/hooks/usePatientVoiceCall';
 import { THEMES, TRANSLATIONS } from './src/lib/theme';
 import { formatDateToDDMMYYYY, toBengaliDigits, formatBengaliFullDate, formatBengaliHeaderDate } from './src/lib/format';
@@ -959,6 +960,26 @@ html.amh-screen-rotation-active #root > div {
   box-shadow:0 0 0 3px color-mix(in srgb,var(--amh-glass-tint) 18%,transparent),inset 0 1px 2px rgba(15,23,42,.04);
 }
 `; 
+
+// পপ-আপ/মোডাল প্যানেলের জন্য একটি স্থায়ী পোর্টাল টার্গেট — index.html-এর MutationObserver
+// document.body-এর সন্তান সরিয়ে ফেলার পরও প্যানেলগুলো থাকে।
+const getPortalRoot = (): HTMLElement =>
+{
+  if (typeof document === 'undefined') return document.body;
+  let el = document.getElementById('amh-portal-root');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'amh-portal-root';
+    el.style.position = 'fixed';
+    el.style.inset = '0';
+    el.style.width = '0';
+    el.style.height = '0';
+    el.style.overflow = 'hidden';
+    el.style.zIndex = '999999'; // Ensure portal content is always on top
+    document.body.appendChild(el);
+  }
+  return el;
+};
 
 const DEFAULT_CHANNEL_ID = 'ansari-medical-hall-queue-2026';
 const SERVER_CLOUD_USER = Object.freeze({ id: 'server-session' });
@@ -6531,10 +6552,10 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         try {
           const snapshot = await readClinicSnapshot(safeRoomKey);
           if (!isMounted) return;
-          
+
           // বর্তমান ও গত ১ দিন এবং পরবর্তী ৬ দিনের ডেটা ফিল্টার করে রাখা
           const now = new Date();
-          const datesToKeep = [today, yesterday];
+          const datesToKeep = [now.toISOString().split('T')[0], yesterday];
           for (let i = 1; i <= 6; i++) {
             const futureDate = new Date();
             futureDate.setDate(now.getDate() + i);
@@ -6909,7 +6930,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       const [h, m] = chamberStartTime.split(':').map(Number);
       const chamberDate = new Date();
       chamberDate.setHours(h || 16, m || 0, 0, 0);
-      if (patient.appointmentDate !== TODAY_KEY || chamberDate.getTime() > baseMs) {
+      if (patient.appointmentDate !== 'TODAY_KEY' || chamberDate.getTime() > baseMs) {
         baseMs = chamberDate.getTime();
       }
     }
@@ -6933,7 +6954,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
       const [h, m] = chamberStartTime.split(':').map(Number);
       const chamberDate = new Date();
       chamberDate.setHours(h || 16, m || 0, 0, 0);
-      if (patient.appointmentDate !== TODAY_KEY || chamberDate.getTime() > baseMs) {
+      if (patient.appointmentDate !== 'TODAY_KEY' || chamberDate.getTime() > baseMs) {
         baseMs = chamberDate.getTime();
       }
     }
@@ -7542,6 +7563,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
 
         // যদি আগে প্রবেশ করা না থাকে এবং এখন প্রবেশ করানো হয় (toggle on), তবে ভয়েস কল হবে
         if (!p.inChamber) {
+          notifyNewCallSound(p);
           callPatientByName(p.name);
         }
 
@@ -7723,7 +7745,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
           </div>
         </div>
       </div>,
-      document.body
+      getPortalRoot()
     );
   };
 
@@ -9957,7 +9979,6 @@ export default function App({ cloudSyncEnabled = true } = {}) {
               <Lock className="w-7 h-7" />
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900">{t.clinicName}</h1>
-            <p className="text-xs font-semibold text-slate-500">স্টাফ ও অ্যাডমিন লগইন পোর্টাল</p>
           </div>
 
           <form onSubmit={handleDeviceLogin} className="space-y-4">
@@ -10022,19 +10043,6 @@ export default function App({ cloudSyncEnabled = true } = {}) {
               </div>
             )}
 
-            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => {
-                  const v = e.target.checked;
-                  setRememberMe(v);
-                  try { localStorage.setItem('amh_remember_me', v ? '1' : '0'); } catch {}
-                }}
-                className="w-4 h-4 accent-emerald-600 cursor-pointer"
-              />
-              <span>রিমেম্বার মি — এই ডিভাইসে লগইন মনে রাখুন (পরে পাসওয়ার্ড লাগবে না)</span>
-            </label>
 
             <button
               type="submit"
@@ -10065,7 +10073,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                       <User className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <span className="block font-black text-slate-900 text-sm leading-tight">দর্শক হিসেবে দেখুন</span>
+                      <span className="block font-black text-slate-900 text-sm leading-tight">সিরিয়ালের জন্য আবেদন করুন</span>
                       <span className="text-[11px] text-slate-600 block leading-tight mt-0.5">পাসওয়ার্ড ছাড়া সিরিয়াল ও লাইভ কিউ দেখুন</span>
                     </div>
                   </div>
@@ -10693,7 +10701,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                 </div>
                 </SpotlightCard>
                 </div>,
-                document.body
+                getPortalRoot()
               )}
             </div>
             )}
@@ -10751,7 +10759,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                       )}
                     </AmhClampedMenu>
                   </>,
-                  document.body
+                  getPortalRoot()
                 )}
               </div>
             )}
@@ -11270,7 +11278,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
               </div>
             </div>
           </div>
-          , document.body
+          , getPortalRoot()
         )}
 
         {/* ===== TV-3: হরাইজেন্টাল বোর্ড (গ্রাফিক্স/ইফেক্টসহ) — স্বাধীন কপি ===== */}
@@ -11369,7 +11377,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
               </div>
             </div>
           </div>
-          , document.body
+          , getPortalRoot()
         )}
 
         {/* ===== TV-4: হরাইজেন্টাল বোর্ড (ইফেক্ট ছাড়া, সফট মিন্ট হালকা) — স্বাধীন কপি ===== */}
@@ -11463,13 +11471,13 @@ export default function App({ cloudSyncEnabled = true } = {}) {
               </div>
             </div>
           </div>
-          , document.body
+          , getPortalRoot()
         )}
 
         {/* TV মোডে সাধারণ ওভারলে: খালি হলে স্বাগত স্ক্রিন + নিচে চলমান ঘোষণা (যেকোনো ভ্যারিয়েন্টে, body-পোর্টালে) */}
         {activeTab === 'tv' && typeof document !== 'undefined' && createPortal(
           <>{renderTvWelcome()}{renderTvMarquee()}</>,
-          document.body
+          getPortalRoot()
         )}
 
         {/* গেস্ট সিরিয়াল আবেদন — এডমিন/স্টাফ অনুমোদন প্যানেল (অনুমোদন না করলে কিউ-তে সিরিয়াল বরাদ্দ হয় না) */}
@@ -12244,7 +12252,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                   </div>
                 </div>
               </div>,
-              document.body
+              getPortalRoot()
             )}
             </div>
 
@@ -12599,7 +12607,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                             </button>
                           </AmhClampedMenu>
                           </>,
-                          document.body
+                          getPortalRoot()
                         )}
                       </div>
                     </div>
@@ -12792,7 +12800,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                   </div>
                 </div>
               </div>,
-              document.body
+              getPortalRoot()
             )}
           </div>
         )}
@@ -13174,18 +13182,15 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                           />
                         </div>
 
-                        <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
-                          <input
-                            type="checkbox"
+                        <label className="flex items-center gap-3 p-2 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                          <GooeyToggle
                             checked={gDriveAutoDownloadEnabled}
-                            onChange={(e) => {
-                              const next = e.target.checked;
+                            onChange={(next) => {
                               setGDriveAutoDownloadEnabled(next);
                               try {
                                 localStorage.setItem('amh_gdrive_auto_download', JSON.stringify(next));
                               } catch {}
                             }}
-                            className="w-4 h-4 text-blue-600 rounded cursor-pointer"
                           />
                           <span className="text-[11px] font-bold text-slate-800">
                             প্রতি ৩০ মিনিটে অটো ব্যাকআপ ফাইল পিসিতেও ডাউনলোড হবে
@@ -13375,7 +13380,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                           </button>
                         </AmhClampedMenu>
                       </>,
-                      document.body
+                      getPortalRoot()
                     )}
                   </div>
                 </div>
@@ -13534,7 +13539,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
         {/* Admin Panel (সরাসরি অ্যাডমিনের জন্য উন্মুক্ত, কোনো অতিরিক্ত পাসওয়ার্ড ছাড়া) */}
         {activeTab === 'team' && currentUser?.isAdmin && (
           <div className="max-w-4xl mx-auto space-y-4">
-            <SpotlightCard variant="sub" className="liquid-glass !bg-transparent">
+            <SpotlightCard variant="sub">
               <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-between shadow-2xs">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-700" />
@@ -13544,8 +13549,8 @@ export default function App({ cloudSyncEnabled = true } = {}) {
             </SpotlightCard>
 
                 {/* লগইন পাসওয়ার্ড রিকোয়ার্ড অন/অফ বাটন */}
-                <SpotlightCard dark className="liquid-glass !bg-transparent">
-                <div className="p-4 rounded-2xl text-white border border-slate-700/50 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <SpotlightCard dark>
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border border-slate-700 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black transition-colors ${
                       requireLoginPassword ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-400/40' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
@@ -13571,10 +13576,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextVal = !requireLoginPassword;
+                  <GooeyToggle
+                    checked={requireLoginPassword}
+                    onChange={(nextVal) => {
                       setRequireLoginPassword(nextVal);
                       try {
                         localStorage.setItem('amh_require_login_password', JSON.stringify(nextVal));
@@ -13587,17 +13591,9 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                       setSyncToast(nextVal ? '✓ পাসওয়ার্ড সুরক্ষা চালু হয়েছে (প্রতিবার লগইনে পাসওয়ার্ড লাগবে)' : '✓ পাসওয়ার্ড সুরক্ষা বন্ধ হয়েছে (পাসওয়ার্ড ছাড়া সরাসরি লগইন)');
                       setTimeout(() => setSyncToast(''), 3500);
                     }}
-                    className={`amh-gold-marked relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-md ${
-                      requireLoginPassword ? 'bg-emerald-500' : 'bg-slate-700'
-                    }`}
-                    title={requireLoginPassword ? 'পাসওয়ার্ড যাচাই বন্ধ করতে ক্লিক করুন' : 'পাসওয়ার্ড যাচাই চালু করতে ক্লিক করুন'}
-                  >
-                    <span
-                      className={`amh-gold-marked-thumb pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                        requireLoginPassword ? 'translate-x-8' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
+                    className="h-8 w-16 shrink-0"
+                    aria-label="পাসওয়ার্ড যাচাই চালু/বন্ধ"
+                  />
                 </div>
                 </SpotlightCard>
 
@@ -14249,10 +14245,17 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                       <h4 className="text-base font-black text-slate-900 tracking-tight">TV বোর্ড কনফিগারেশন</h4>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <button type="button" onClick={() => { const next = !tvSyncEnabled; if (next) { tvLastSentJsonRef.current = null; tvInitBroadcastRef.current = false; } setTvSyncEnabled(next); setSyncToast(next ? '✓ ডিভাইস-সিঙ্ক চালু — এখন বদল সব ডিভাইসে ছড়াবে' : '⏸ ডিভাইস-সিঙ্ক বন্ধ — এই ডিভাইস আলাদাভাবে চলবে'); setTimeout(() => setSyncToast(''), 3000); }} className={`amh-gold-marked inline-flex items-center gap-1.5 text-[10px] font-bold rounded-full px-2 py-1 border transition cursor-pointer shrink-0 ${tvSyncEnabled ? 'text-emerald-700 border-emerald-300 bg-emerald-50 hover:bg-emerald-100' : 'text-slate-500 border-slate-300 bg-slate-100 hover:bg-slate-200'}`} title={tvSyncEnabled ? 'ডিভাইস-সিঙ্ক চালু — বন্ধ করতে চাপুন' : 'ডিভাইস-সিঙ্ক বন্ধ — চালু করতে চাপুন'} aria-pressed={tvSyncEnabled}>
-                        <span className={`amh-gold-marked relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors ${tvSyncEnabled ? 'bg-emerald-500' : 'bg-slate-400'}`}><span className={`amh-gold-marked-thumb pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${tvSyncEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} /></span>
-                        সিঙ্ক {tvSyncEnabled ? 'চালু' : 'বন্ধ'}
-                      </button>
+                      <GooeyToggle
+                        checked={tvSyncEnabled}
+                        onChange={(enabled) => {
+                          if (enabled) { tvLastSentJsonRef.current = null; tvInitBroadcastRef.current = false; }
+                          setTvSyncEnabled(enabled);
+                          setSyncToast(enabled ? '✓ ডিভাইস-সিঙ্ক চালু — এখন বদল সব ডিভাইসে ছড়াবে' : '⏸ ডিভাইস-সিঙ্ক বন্ধ — এই ডিভাইস আলাদাভাবে চলবে');
+                          setTimeout(() => setSyncToast(''), 3000);
+                        }}
+                        className="h-6 w-11 shrink-0"
+                      />
+                      <span className="text-[10px] font-bold text-slate-700">সিঙ্ক {tvSyncEnabled ? 'চালু' : 'বন্ধ'}</span>
                       <span className={`${tvSyncEnabled ? 'amh-gold-marked ' : ''}inline-flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-1 border ${tvSyncEnabled ? 'text-emerald-700 border-emerald-300 bg-emerald-50' : 'text-slate-500 border-slate-300 bg-slate-100'}`} title="TV সেটিংস বদলালে সেগুলো Supabase ডেটাবেসের মাধ্যমে সব অনুমোদিত ডিভাইসে সিঙ্ক হয়"><RefreshCw className={`w-3 h-3 ${tvSyncEnabled ? '' : 'opacity-50'}`} />{tvSyncEnabled ? 'সেটিংস ডিভাইসে সিঙ্ক হয়' : 'সিঙ্ক বন্ধ (শুধু এই ডিভাইস)'}</span>
                       <button
                         type="button"
@@ -14278,14 +14281,11 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                         <div key={n} className={`rounded-2xl border border-l-4 px-3 py-2.5 shadow-sm hover:shadow-md transition-shadow duration-200 ${TV_CARD_TINTS[n].bg} ${TV_CARD_TINTS[n].rail} ${TV_CARD_TINTS[n].border} ${cfg.enabled ? '' : 'opacity-75'}`}>
                           {/* সারি ১: চালু, নাম, ডিফল্ট(★), খুলুন, মিনিমাইজ/হাইড — নতুন সাজ */}
                           <div className="flex items-center gap-2 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => updateTvBoard(n, { enabled: !cfg.enabled })}
-                              className={`amh-gold-marked relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${cfg.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                              title={cfg.enabled ? 'বন্ধ করুন' : 'চালু করুন'} aria-label={`TV-${n} চালু/বন্ধ`}
-                            >
-                              <span className={`amh-gold-marked-thumb pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${cfg.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                            </button>
+                            <GooeyToggle
+                              checked={cfg.enabled}
+                              onChange={(enabled) => updateTvBoard(n, { enabled })}
+                              className="h-7 w-14 shrink-0"
+                            />
                             <input
                               type="text" value={cfg.label ?? ''}
                               onChange={(e) => updateTvBoard(n, { label: e.target.value })}
@@ -14550,7 +14550,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <input type="number" min={3} max={120} value={tvTenRotationSeconds} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setTvTenRotationSeconds(Math.min(120, Math.max(3, v))); }} className="w-14 px-2 py-1 text-sm font-mono font-bold text-center rounded-lg border border-slate-200 bg-white" aria-label="রোটেশন সেকেন্ড" />
-                        <button type="button" onClick={() => setTvTenRotationEnabled(o => !o)} className={`amh-gold-marked relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${tvTenRotationEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-label="অটো-রোটেশন চালু/বন্ধ"><span className={`amh-gold-marked-thumb pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${tvTenRotationEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} /></button>
+                        <GooeyToggle checked={tvTenRotationEnabled} onChange={(v) => setTvTenRotationEnabled(v)} className="h-7 w-14 shrink-0" aria-label="অটো-রোটেশন চালু/বন্ধ" />
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
@@ -14558,14 +14558,14 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                         <div className="text-xs font-bold text-slate-800">নতুন ডাকে বিপ/শব্দ</div>
                         <div className="text-[10px] text-slate-500">রোগী ডাকা হলে টিভিতে ছোট সংকেত বাজবে</div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">{tvSampleBtn(() => playTvCallBeep(), 'বিপ/শব্দের নমুনা শুনুন')}<button type="button" onClick={() => setTvSoundEnabled(o => !o)} className={`amh-gold-marked relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${tvSoundEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-label="সাউন্ড চালু/বন্ধ"><span className={`amh-gold-marked-thumb pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${tvSoundEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} /></button></div>
+                      <div className="flex items-center gap-2 shrink-0">{tvSampleBtn(() => playTvCallBeep(), 'বিপ/শব্দের নমুনা শুনুন')}<GooeyToggle checked={tvSoundEnabled} onChange={(v) => setTvSoundEnabled(v)} className="h-7 w-14 shrink-0" aria-label="সাউন্ড চালু/বন্ধ" /></div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-slate-800">দিন/রাত অনুযায়ী উজ্জ্বলতা</div>
                         <div className="text-[10px] text-slate-500">রাতের বেলা বোর্ড স্বয়ংক্রিয়ভাবে একটু ম্লান হবে</div>
                       </div>
-                      <button type="button" onClick={() => setTvAutoBrightness(o => !o)} className={`amh-gold-marked relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${tvAutoBrightness ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-label="অটো-উজ্জ্বলতা চালু/বন্ধ"><span className={`amh-gold-marked-thumb pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${tvAutoBrightness ? 'translate-x-5' : 'translate-x-0.5'}`} /></button>
+                      <GooeyToggle checked={tvAutoBrightness} onChange={(v) => setTvAutoBrightness(v)} className="h-7 w-14 shrink-0" aria-label="অটো-উজ্জ্বলতা চালু/বন্ধ" />
                     </div>
 
                     {/* নিচে চলমান ঘোষণা (মার্কি) */}
@@ -14574,7 +14574,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                         <div className="text-xs font-bold text-slate-800">নিচে চলমান ঘোষণা (মার্কি)</div>
                         <div className="text-[10px] text-slate-500">বোর্ডের নিচে ডান দিক থেকে বাঁয়ে চলমান লেখা</div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">{tvSampleBtn(() => speakTvSample(tvMarquee.text || 'দয়া করে নিজের টোকেন নম্বর শুনুন'), 'ঘোষণার নমুনা শুনুন')}<button type="button" onClick={() => setTvMarquee(o => ({ ...o, enabled: !o.enabled }))} className={`amh-gold-marked relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${tvMarquee.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-label="মার্কি চালু/বন্ধ"><span className={`amh-gold-marked-thumb pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${tvMarquee.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} /></button></div>
+                      <div className="flex items-center gap-2 shrink-0">{tvSampleBtn(() => speakTvSample(tvMarquee.text || 'দয়া করে নিজের টোকেন নম্বর শুনুন'), 'ঘোষণার নমুনা শুনুন')}<GooeyToggle checked={tvMarquee.enabled} onChange={(v) => setTvMarquee(o => ({ ...o, enabled: v }))} className="h-7 w-14 shrink-0" aria-label="মার্কি চালু/বন্ধ" /></div>
                     </div>
                     {tvMarquee.enabled && (
                       <div className="rounded-lg border border-slate-200 bg-white/70 px-2.5 py-2 space-y-1.5">
@@ -14592,7 +14592,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                         <div className="text-xs font-bold text-slate-800">ডাকার রোগী হাইলাইট</div>
                         <div className="text-[10px] text-slate-500">সর্বশেষ ডাকা রোগীর কার্ডে স্পন্দন (pulse)</div>
                       </div>
-                      <button type="button" onClick={() => setTvHighlightOnCall(o => !o)} className={`amh-gold-marked relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${tvHighlightOnCall ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-label="হাইলাইট চালু/বন্ধ"><span className={`amh-gold-marked-thumb pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${tvHighlightOnCall ? 'translate-x-5' : 'translate-x-0.5'}`} /></button>
+                      <GooeyToggle checked={tvHighlightOnCall} onChange={(v) => setTvHighlightOnCall(v)} className="h-7 w-14 shrink-0" aria-label="হাইলাইট চালু/বন্ধ" />
                     </div>
 
                     {/* খালি কিউ হলে স্বাগত স্ক্রিন */}
@@ -14601,7 +14601,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                         <div className="text-xs font-bold text-slate-800">খালি কিউ হলে স্বাগত স্ক্রিন</div>
                         <div className="text-[10px] text-slate-500">কিউ ফাঁকা থাকলে ব্র্যান্ডের 'স্বাগতম' পাতা দেখাবে</div>
                       </div>
-                      <button type="button" onClick={() => setTvWelcome(o => !o)} className={`amh-gold-marked relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${tvWelcome ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-label="_swabhikramon_scrin"><span className={`amh-gold-marked-thumb pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${tvWelcome ? 'translate-x-5' : 'translate-x-0.5'}`} /></button>
+                      <GooeyToggle checked={tvWelcome} onChange={(v) => setTvWelcome(v)} className="h-7 w-14 shrink-0" aria-label="স্বাগত স্ক্রিন চালু/বন্ধ" />
                     </div>
 
                     {/* কণ্ঠ ঘোষণা (TTS) */}
@@ -14610,7 +14610,7 @@ export default function App({ cloudSyncEnabled = true } = {}) {
                         <div className="text-xs font-bold text-slate-800">কণ্ঠ ঘোষণা (TTS)</div>
                         <div className="text-[10px] text-slate-500">ডাকলে "টোকেন …" পড়ে শোনানো হবে</div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">{tvSampleBtn(() => speakTvSample('টোকেন 1-A — দয়া করে চেম্বারে আসুন'), 'কণ্ঠ ঘোষণার নমুনা শুনুন')}<button type="button" onClick={() => setTvVoice(o => ({ ...o, enabled: !o.enabled }))} className={`amh-gold-marked relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${tvVoice.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-label="konno_ghoshona"><span className={`amh-gold-marked-thumb pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${tvVoice.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} /></button></div>
+                      <div className="flex items-center gap-2 shrink-0">{tvSampleBtn(() => speakTvSample('টোকেন 1-A — দয়া করে চেম্বারে আসুন'), 'কণ্ঠ ঘোষণার নমুনা শুনুন')}<GooeyToggle checked={tvVoice.enabled} onChange={(v) => setTvVoice(o => ({ ...o, enabled: v }))} className="h-7 w-14 shrink-0" aria-label="কণ্ঠ ঘোষণা চালু/বন্ধ" /></div>
                     </div>
                     {tvVoice.enabled && (
                       <div className="rounded-lg border border-slate-200 bg-white/70 px-2.5 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
