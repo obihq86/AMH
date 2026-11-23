@@ -29,3 +29,5 @@ tmp-shot.mjs
 *.docx
 *.xlsx
 amh-*.png
+
+.claude/
