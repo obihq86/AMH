@@ -404,3 +404,77 @@ a,
     animation-iteration-count: infinite !important;
   }
 }
+
+
+
+/* ===== Glider Slide Transition & Motion-39 ===== */
+.amh-bottomnav-inner {
+  position: relative;
+  isolation: isolate;
+}
+
+.glass-glider {
+  position: absolute;
+  z-index: 0;
+  width: 74px;
+  height: 74px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 22px;
+  pointer-events: none;
+  will-change: transform;
+  transition: transform var(--slide-duration, 0.5s) cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.glider-body {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15) 0%, transparent 80%);
+  will-change: transform, filter;
+  animation: motion39-breathe var(--anim-duration, 1s) cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+}
+
+/* যখন আইকন পরিবর্তন হয় তখন পালস ইফেক্ট */
+.glider-active-pulse {
+  animation:
+    motion39-glide-pulse var(--anim-duration, 0.6s) cubic-bezier(0.22, 1, 0.36, 1),
+    motion39-breathe var(--anim-duration, 1s) cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate !important;
+}
+
+@keyframes motion39-breathe {
+  0% { transform: scale(0.965); filter: brightness(0.98) saturate(1.05); }
+  100% { transform: scale(1.015); filter: brightness(1.12) saturate(1.25); }
+}
+
+@keyframes motion39-glide-pulse {
+  0%   { transform: scale(1, 1); }
+  35%  { transform: scale(0.88, 1.14); }
+  70%  { transform: scale(1.04, 0.96); }
+  100% { transform: scale(1, 1); }
+}
+
+.toggle-container {
+  --active-color: #10b981;   /* সবুজ (ON) */
+  --inactive-color: #ef4444; /* লাল (OFF) */
+  position: relative;
+  aspect-ratio: 292 / 142;
+  height: 1.5em; /* Adjusted size for UI fit */
+}
+.toggle-input { appearance: none; margin: 0; position: absolute; z-index: 1; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; }
+.toggle { width: 100%; height: 100%; overflow: visible; display: block; }
+.toggle-background { fill: var(--inactive-color); transition: fill .4s; }
+.toggle-input:checked + .toggle .toggle-background { fill: var(--active-color); }
+.toggle-circle-center { transform-origin: center; transition: transform .6s; }
+.toggle-input:checked + .toggle .toggle-circle-center { transform: translateX(150px); }
+.toggle-circle { transform-origin: center; transition: transform .45s; backface-visibility: hidden; }
+.toggle-circle.left { transform: scale(1); }
+.toggle-input:checked + .toggle .toggle-circle.left { transform: scale(0); }
+.toggle-circle.right { transform: scale(0); }
+.toggle-input:checked + .toggle .toggle-circle.right { transform: scale(1); }
+.toggle-icon { transition: fill .4s; }
+.toggle-icon.on { fill: var(--inactive-color); }
+.toggle-input:checked + .toggle .toggle-icon.on { fill: #fff; }
+.toggle-icon.off { fill: rgba(255, 255, 255, 0.7); }
+.toggle-input:checked + .toggle .toggle-icon.off { fill: var(--active-color); }
