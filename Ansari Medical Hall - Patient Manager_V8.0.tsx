@@ -6554,12 +6554,11 @@ export default function App({ cloudSyncEnabled = true } = {}) {
           if (!isMounted) return;
 
           // বর্তমান ও গত ১ দিন এবং পরবর্তী ৬ দিনের ডেটা ফিল্টার করে রাখা
-          const now = new Date();
-          const datesToKeep = [now.toISOString().split('T')[0], yesterday];
+          // (লোকাল/Asia-Dhaka দিন-কী ব্যবহার — UTC toISOString নয়, নাহলে ভোররাতে দিনে গড়মিল হয়)
+          const todayKey = localDateKey();
+          const datesToKeep = [shiftDateKey(todayKey, -1), todayKey];
           for (let i = 1; i <= 6; i++) {
-            const futureDate = new Date();
-            futureDate.setDate(now.getDate() + i);
-            datesToKeep.push(futureDate.toISOString().split('T')[0]);
+            datesToKeep.push(shiftDateKey(todayKey, i));
           }
           
           if (snapshot.payload && snapshot.updatedAt > latestRemoteTimestamp) {
