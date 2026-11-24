@@ -7,3 +7,7 @@
 - Never modify unrequested features. Always verify build before completion.
 ## UI/UX Rules
 - For UI, CSS, layout, or component styling tasks: invoke the `/ui-ux-pro-max` skill, while strictly preserving the existing Plain UI (Green) theme, fixed bottom navigation bar, and Bengali strings.
+## Deployment Rule
+- Netlify auto-builds are disabled to save build credits.
+- When asked to deploy to Netlify, always deploy locally using 
+etlify deploy --prod.

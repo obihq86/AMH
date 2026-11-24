@@ -31,3 +31,8 @@ tmp-shot.mjs
 amh-*.png
 
 .claude/
+
+# Local Netlify folder
+.netlify
+
+.netlify/
