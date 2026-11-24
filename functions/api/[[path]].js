@@ -3,11 +3,10 @@ import { scryptSync, createHmac, timingSafeEqual } from 'node:crypto';
 const SESSION_COOKIE = 'amh_clinic_session';
 const SESSION_SECONDS = 12 * 60 * 60;
 
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-  });
+const json = (data, status = 200) => new Response(JSON.stringify(data), {
+  status,
+  headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+});
 
 function signature(value, secret) {
   return createHmac('sha256', secret).update(value).digest('base64url');
@@ -53,11 +52,16 @@ export const onRequest = async (context) => {
   const { request, env, params } = context;
   const route = params.path?.[0];
 
+  // Fail fast with clear diagnostic if env vars missing
+  if (!env.SUPABASE_URL) return json({ error: 'Missing env SUPABASE_URL' }, 500);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Missing env SUPABASE_SERVICE_ROLE_KEY' }, 500);
+  if (!env.SUPABASE_SESSION_SECRET) return json({ error: 'Missing env SUPABASE_SESSION_SECRET' }, 500);
+
   const config = {
-    baseUrl: env.SUPABASE_URL.replace(/\/+$/, ''),
+    baseUrl: env.SUPABASE_URL.replace(/\+$/, ''),
     serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,
-    sessionSecret: env.CLINIC_SESSION_SECRET,
-    pinHash: env.CLINIC_PIN_HASH,
+    sessionSecret: env.SUPABASE_SESSION_SECRET,
+    pinHash: env.SUPABASE_PIN_HASH,
   };
 
   if (route === 'auth') {
@@ -85,11 +89,17 @@ export const onRequest = async (context) => {
     if (request.method === 'GET') {
       const isCheckOnly = url.searchParams.get('checkOnly') === 'true';
       const q = new URLSearchParams({ select: isCheckOnly ? 'updated_at' : 'payload,updated_at', room_id: `eq.${roomId}`, limit: '1' });
-      const resp = await fetch(`${config.baseUrl}/rest/v1/clinic_sync_state?${q}`, {
-        headers: { apikey: config.serviceKey, Authorization: `Bearer ${config.serviceKey}` }
-      });
-      const rows = await resp.json();
-      return json({ payload: isCheckOnly ? null : (rows[0]?.payload ?? null), updatedAt: Number(rows[0]?.updated_at) || 0 });
+      try {
+        const response = await fetch(`${config.baseUrl}/rest/v1/clinic_sync_state?${q}`, {
+          headers: { apikey: config.serviceKey, Authorization: `Bearer ${config.serviceKey}`, 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) throw new Error('Supabase request failed: ' + (await response.text()));
+        const rows = await response.json();
+        return json({ payload: isCheckOnly ? null : (rows[0]?.payload ?? null), updatedAt: Number(rows[0]?.updated_at) || 0 });
+      } catch (err) {
+        console.error('Clinic state API failed:', err);
+        return json({ error: 'API request failed', details: err.message }, 502);
+      }
     }
 
     const body = await request.json();
