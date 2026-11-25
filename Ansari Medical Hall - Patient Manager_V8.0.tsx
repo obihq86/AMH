@@ -2518,11 +2518,13 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   // TV বোর্ডের ৪টি স্বাধীন ভ্যারিয়েন্ট: ১=ভার্টিক্যাল গ্রাফিক্স, ২=ভার্টিক্যাল প্লেইন, ৩=হরাইজেন্টাল গ্রাফিক্স, ৪=হরাইজেন্টাল প্লেইন
   const [tvVariant, setTvVariant] = useState(() => {
     try {
-      // ?tv=1..4 থাকলে সেই বোর্ডই খুলবে (প্রতি টিভির স্থায়ী লিঙ্ক), না থাকলে শেষ ব্যবহৃত বোর্ড
+      // ?tv=1..4 থাকলে সেই বোর্ডই খুলবে, না থাকলে প্যাথ (e.g. /tv1) চেক করবে
       const p = new URLSearchParams(window.location.search);
       const pathVariant = window.location.pathname.match(/^\/tv([1-4])\/?$/i)?.[1];
       const urlV = Number(p.get('tv') || pathVariant);
       if ([1, 2, 3, 4].includes(urlV)) return urlV;
+
+      // ডিফল্ট বোর্ড
       const v = Number(localStorage.getItem('amh_tv_variant'));
       if ([1, 2, 3, 4].includes(v)) return v;
     } catch {}
