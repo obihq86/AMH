@@ -14,9 +14,8 @@ run(['build', '--config', 'vite.config.tv.ts']);
 execFileSync('node', ['tools/tv-compat.mjs'], { cwd: root, stdio: 'inherit' });
 
 fs.cpSync(tvDist, path.join(mainDist, 'tv'), { recursive: true });
-fs.copyFileSync(path.join(tvDist, 'index.html'), tvHtml);
-
-const html = fs.readFileSync(tvHtml, 'utf8');
+// fs.copyFileSync(path.join(tvDist, 'index.html'), tvHtml);
+const html = fs.readFileSync(path.join(tvDist, 'index.html'), 'utf8');
 if (!html.includes('/tv/assets/') || !html.includes('index-legacy-')) {
   throw new Error('TV compatibility page is missing its legacy assets.');
 }
