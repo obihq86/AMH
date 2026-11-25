@@ -37,33 +37,25 @@ self.addEventListener('fetch', (event) => {
   );
   return;
 
-  // Netlify functions (e.g., /api/*) are now handled as static assets or fallbacks.
-  // If the request is for an API route, skip Netlify functions and let it fall through
-  // to Cloudflare Workers instead (these are now defined in `functions/api/[path].js`).
-  if (url.pathname.startsWith('/api/')) {
-    // Cloudflare Workers are now handling /api/* — fall back to cache or fetch
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
+  // API routes must always hit the network (Cloudflare Pages Functions / Supabase) —
+  // never served from or written to the cache, so live clinic state is never stale.
+  if (url.pathname.startsWith('/api/') || url.hostname.indexOf('supabase.co') !== -1) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  // Non-navigation GET: NETWORK-FIRST (always fetch the latest when online;
+  // fall back to cache only when offline). This stops stale cached JS/icons
+  // from being served after an update (a hard refresh now reliably shows the new build).
+  event.respondWith(
+    fetch(req)
+      .then((res) => {
+        if (res && res.ok) {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => caches.match(req));
-  } else {
-    // Netlify functions (e.g., /api/*) are now handled as fallbacks or via worker.
-    // Non-navigation GET: NETWORK-FIRST (always fetch the latest when online;
-    // fall back to cache only when offline). This stops stale cached JS/icons
-    // from being served after an update (a hard refresh now reliably shows the new build).
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          if (res && res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => caches.match(req))
-  };
+        }
+        return res;
+      })
+      .catch(() => caches.match(req))
+  );
 });

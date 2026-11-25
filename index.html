@@ -15,8 +15,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AMH" />
     <style>
-      /* Netlify-এর যেকোনো ইনজেক্টেড ব্যাজ বা ফ্লোটিং বার হাইড করার জন্য */
-      body > *:not(#root):not(script):not(#amh-portal-root),
+      /* Netlify-এর ইনজেক্টেড ব্যাজ/উইজেট হাইড — অ্যাপের #root ও #amh-portal-root কখনোই টার্গেট হবে না */
+      [data-netlify],
       iframe[src*="netlify"],
       a[href*="netlify.com"],
       div[class*="netlify"],
@@ -53,13 +53,25 @@
         }
       }
 
-      // #root এর বাইরে Netlify ইনজেক্ট করা যেকোনো ব্যাজ বা উইজেট রিমুভ করার স্ক্রিপ্ট
+      // শুধুমাত্র Netlify-এর ইনজেক্ট করা ব্যাজ/উইজেট রিমুভ করার স্ক্রিপ্ট —
+      // অ্যাপের নিজস্ব পোর্টাল (#amh-portal-root), #root বা অন্য কোনো DOM কখনো মোছা হয় না
       (function () {
+        function isNetlifyInjected(el) {
+          if (!el || !el.tagName) return false;
+          var tag = el.tagName.toLowerCase();
+          if (tag === 'script' || el.id === 'root' || el.id === 'amh-portal-root') return false;
+          if (el.hasAttribute && el.hasAttribute('data-netlify')) return true;
+          if (el.hasAttribute && el.hasAttribute('data-netlify-badge')) return true;
+          if (tag === 'iframe' && el.src && el.src.indexOf('netlify') !== -1) return true;
+          if (tag === 'a' && el.href && el.href.indexOf('netlify.com') !== -1) return true;
+          var cls = el.className && typeof el.className === 'string' ? el.className : '';
+          var id = typeof el.id === 'string' ? el.id : '';
+          if (cls.indexOf('netlify') !== -1 || id.indexOf('netlify') !== -1) return true;
+          return false;
+        }
         function nukeExternalWidgets() {
           Array.from(document.body.children).forEach(function (el) {
-            if (el.id !== 'root' && el.id !== 'amh-portal-root' && el.tagName !== 'SCRIPT') {
-              el.remove();
-            }
+            if (isNetlifyInjected(el)) el.remove();
           });
         }
         nukeExternalWidgets();
