@@ -13,11 +13,11 @@ run(['build']);
 run(['build', '--config', 'vite.config.tv.ts']);
 execFileSync('node', ['tools/tv-compat.mjs'], { cwd: root, stdio: 'inherit' });
 
-fs.cpSync(tvDist, path.join(mainDist, 'tv'), { recursive: true });
-// fs.copyFileSync(path.join(tvDist, 'index.html'), tvHtml);
+// fs.cpSync(tvDist, path.join(mainDist, 'tv'), { recursive: true });
+// // Do NOT emit dist/tv.html — Cloudflare Pretty URLs redirects /tv1 → /tv
 const html = fs.readFileSync(path.join(tvDist, 'index.html'), 'utf8');
 if (!html.includes('/tv/assets/') || !html.includes('index-legacy-')) {
   throw new Error('TV compatibility page is missing its legacy assets.');
 }
 
-console.log('Vercel output includes the app and legacy-browser TV page at /tv.html.');
+console.log('TV build verified without emitting dist/tv.html (prevents Cloudflare Pretty URL redirect).');
