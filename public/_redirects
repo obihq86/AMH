@@ -1,6 +1,6 @@
-/tv1 /tv.html 200
-/tv2 /tv.html 200
-/tv3 /tv.html 200
-/tv4 /tv.html 200
+/tv1 /index.html 200
+/tv2 /index.html 200
+/tv3 /index.html 200
+/tv4 /index.html 200
 /api/* /api/:splat 200
 /* /index.html 200
