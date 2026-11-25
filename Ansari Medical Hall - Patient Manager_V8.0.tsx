@@ -2491,6 +2491,10 @@ export default function App({ cloudSyncEnabled = true } = {}) {
   const [activeTab, setActiveTab] = useState(() => {
     try {
       if (typeof window !== 'undefined') {
+        // সরাসরি TV লিঙ্কে প্রবেশ করলে TV মোডে সেট করা
+        const pathVariant = window.location.pathname.match(/^\/tv([1-4])\/?$/i)?.[1];
+        if (pathVariant) return 'tv';
+
         const savedId = localStorage.getItem('amh_active_user_id');
         if (savedId === TV_SESSION_USER.id) return 'tv';
         if (resolveUrlSessionUser()?.isTvMode) return 'tv';
