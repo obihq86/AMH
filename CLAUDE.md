@@ -11,3 +11,9 @@
 - Netlify auto-builds are disabled to save build credits.
 - When asked to deploy to Netlify, always deploy locally using 
 etlify deploy --prod.
+
+## Cloudflare Deployment Rule (PRIMARY)
+- PRIMARY hosting is Cloudflare Pages: https://amh-aw9.pages.dev/
+- Cloudflare auto-deploys on every push to origin/main.
+- Every fix/feature MUST be committed and pushed to origin/main (`git add . && git commit -m "..." && git push origin main`) so Cloudflare Pages auto-deploys it.
+- Never deploy to any other domain/host unless the user explicitly asks.
