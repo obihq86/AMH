@@ -20,4 +20,12 @@ if (!html.includes('/tv/assets/') || !html.includes('index-legacy-')) {
   throw new Error('TV compatibility page is missing its legacy assets.');
 }
 
-console.log('TV build verified without emitting dist/tv.html (prevents Cloudflare Pretty URL redirect).');
+// Create tv1..tv4 index.html files so Cloudflare serves them as real static files
+// (prevents Cloudflare's automatic /tv.html -> /tv redirect).
+for (const n of [1, 2, 3, 4]) {
+  const dir = path.join(mainDist, `tv${n}`);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync(path.join(tvDist, 'index.html'), path.join(dir, 'index.html'));
+}
+
+console.log('TV build created dist/tv1-4/index.html static files.');
